@@ -89,6 +89,159 @@ class TestCommuterCompanion(unittest.TestCase):
         self.assertFalse(res["decision"]["is_delayed"])
 
 
+class TestIntelligenceAcceptance(unittest.TestCase):
+    def setUp(self):
+        self.engine = CommuterEngine()
+        self.default_threshold = RACHEL_PROFILE["delay_threshold_min"]  # 15 min
+
+    def test_tc_flt_01_noise_filter_suppression(self):
+        """TC-FLT-01: Minor delays (<15 min) should be silenced to prevent alert fatigue."""
+        from src.intelligence.noise_filter import evaluate_noise_filter, UrgencyLevel
+        res = evaluate_noise_filter(
+            delay_minutes=2,
+            threshold_minutes=self.default_threshold,
+            estimated_arrival="08:24 AM",
+            deadline_arrival="08:45 AM",
+        )
+        self.assertEqual(res["notification_action"], "SUPPRESSED")
+        self.assertEqual(res["urgency"], UrgencyLevel.CALM.value)
+        self.assertFalse(res["is_delayed"])
+
+    def test_tc_flt_02_noise_filter_trigger(self):
+        """TC-FLT-02: Delays >= 15 min must fire a proactive alert with recommended bypass."""
+        from src.intelligence.noise_filter import evaluate_noise_filter, UrgencyLevel
+        res = evaluate_noise_filter(
+            delay_minutes=25,
+            threshold_minutes=self.default_threshold,
+            estimated_arrival="08:47 AM",
+            deadline_arrival="08:45 AM",
+        )
+        self.assertEqual(res["notification_action"], "PROACTIVE_PUSH_FIRED")
+        self.assertEqual(res["urgency"], UrgencyLevel.CRITICAL.value)
+        self.assertTrue(res["is_delayed"])
+
+    def test_tc_flt_03_dynamic_threshold_adjustment(self):
+        """TC-FLT-03: User-adjusted threshold adapts engine sensitivity immediately."""
+        from src.intelligence.noise_filter import evaluate_noise_filter
+        res = evaluate_noise_filter(
+            delay_minutes=12,
+            threshold_minutes=10,  # Lowered sensitivity
+            estimated_arrival="08:36 AM",
+            deadline_arrival="08:45 AM",
+        )
+        self.assertTrue(res["is_delayed"])
+
+    def test_tc_scn_01_baseline_commute_loading(self):
+        """TC-SCN-01: Normal scenario loads Rachel's baseline Tampines -> Raffles commute."""
+        res = self.engine.evaluate_commute()
+        self.assertIn("primary_ewl", res["routes"])
+        self.assertTrue(res["routes"]["primary_ewl"]["is_recommended"])
+
+    def test_tc_scn_02_scenario_switch_bypass(self):
+        """TC-SCN-02: EWL fault scenario activates DTL bypass arriving by 08:24 AM."""
+        self.engine.set_scenario(SCENARIO_EWL_FAULT)
+        res = self.engine.evaluate_commute()
+        self.assertTrue(res["routes"]["bypass_dtl"]["is_recommended"])
+        self.assertIn("Downtown Line", res["decision"]["one_line_advice"])
+
+    def test_tc_per_01_persona_profiles_available(self):
+        """TC-PER-01: Ensure Rachel, Arjun, and Mdm Lim profiles are defined."""
+        from src.intelligence.personas import get_persona
+        for p_id in ["rachel", "arjun", "mdm_lim"]:
+            profile = get_persona(p_id)
+            self.assertIsNotNone(profile)
+            self.assertIn("name", profile)
+
+    def test_tc_ai_01_telegram_unstructured_notice_summarization(self):
+        """TC-AI-01: AI/LLM summarizer ingests raw Telegram notice and outputs clean 1-line advice."""
+        from src.intelligence.advisor import synthesize_actionable_advice
+        raw_telegram = (
+            "[SMRT] EWL Update: Due to a signalling fault near Kembangan, train service "
+            "between Bedok and Bugis is delayed by up to 25-30 mins. Free regular bus services "
+            "are running at designated bus stops. Station staff are assisting. We apologise "
+            "for the inconvenience caused. #SMRT"
+        )
+        advice = synthesize_actionable_advice(
+            is_delayed=True,
+            delay_minutes=25,
+            ewl_arrival="08:47 AM",
+            dtl_arrival="08:24 AM",
+            raw_notice_text=raw_telegram,
+            target_arrival="08:45 AM",
+            persona_id="rachel"
+        )
+        self.assertIn("Downtown Line", advice["one_line_advice"])
+        self.assertIn("ai_metadata", advice)
+        self.assertGreaterEqual(float(advice["ai_metadata"]["compression_ratio"].replace("%", "")), 40.0)
+
+    def test_tc_pcd_01_preemptive_crowd_departure_advice(self):
+        """TC-PCD-01: High platform crowd forecast ('h') at 08:00 AM advises 10-min advance departure."""
+        from src.intelligence.crowd_forecast import evaluate_pcd_forecast
+        pcd_data = [
+            {"Station": "EW2", "StartTime": "08:00", "EndTime": "08:30", "CrowdLevel": "h"}
+        ]
+        result = evaluate_pcd_forecast(
+            forecast_data=pcd_data,
+            station_code="EW2",
+            departure_time="07:40 AM",
+            advance_lead_min=10
+        )
+        self.assertTrue(result["forecast_detected"])
+        self.assertEqual(result["suggested_departure"], "07:30 AM")
+        self.assertIn("leave 10 mins early at 07:30 AM to beat the rush", result["advice"])
+
+    def test_tc_per_02_engine_persona_switching_arjun(self):
+        """TC-PER-02: Switching to Arjun routes multimodal cycle + transit to one-north."""
+        self.engine.set_persona("arjun")
+        res = self.engine.evaluate_commute()
+        self.assertEqual(res["persona_id"], "arjun")
+        self.assertIn("primary_arjun", res["routes"])
+        self.assertEqual(res["profile"]["name"], "Arjun")
+        self.assertTrue(res["routes"]["primary_arjun"]["is_recommended"])
+
+    def test_tc_per_03_engine_persona_switching_mdm_lim(self):
+        """TC-PER-03: Switching to Mdm Lim routes step-free accessibility transit."""
+        self.engine.set_persona("mdm_lim")
+        res = self.engine.evaluate_commute()
+        self.assertEqual(res["persona_id"], "mdm_lim")
+        self.assertIn("primary_mdm_lim", res["routes"])
+        self.assertEqual(res["profile"]["name"], "Mdm Lim")
+        self.assertTrue(res["routes"]["primary_mdm_lim"]["step_free_certified"])
+
+    def test_tc_cust_01_create_custom_user_route_on_the_spot(self):
+        """TC-CUST-01: Verifies on-the-spot creation of customized route and persona for a new user."""
+        custom_input = {
+            "name": "David",
+            "persona": "East-to-North Inter-corridor Commuter",
+            "origin": "Jurong East",
+            "destination": "Bishan",
+            "departure_time": "08:00 AM",
+            "deadline_arrival": "08:45 AM",
+            "delay_threshold_min": 10,
+            "cycling_enabled": True
+        }
+        res = self.engine.create_custom_commute(custom_input)
+        self.assertEqual(res["profile"]["name"], "David")
+        self.assertTrue(res["profile"]["is_custom"])
+        self.assertIn("primary_custom", res["routes"])
+        custom_route = res["routes"]["primary_custom"]
+        self.assertIn("Jurong East to Bishan", custom_route["title"])
+        self.assertTrue(custom_route["cycling_enabled"])
+        self.assertGreater(len(custom_route["legs"]), 2)
+
+    def test_tc_cust_02_arbitrary_search_input_evaluation(self):
+        """TC-CUST-02: Search bar inputs for arbitrary corridors dynamically route MRT path."""
+        res = self.engine.evaluate_commute(
+            custom_origin="Woodlands",
+            custom_dest="Raffles Place",
+            custom_arrival="08:55 AM"
+        )
+        self.assertIn("primary_custom", res["routes"])
+        self.assertIn("Woodlands to Raffles Place", res["routes"]["primary_custom"]["title"])
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
 

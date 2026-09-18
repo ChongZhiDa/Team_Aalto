@@ -1,9 +1,9 @@
 """
 Disruption scenarios and replay engine for PS2 hackathon evaluation.
-Allows judges to evaluate Rachel's companion app under:
+Allows judges to evaluate StationBuddy under:
 1. Normal commute (noise filter suppresses minor headways)
-2. Major EWL track fault (triggers proactive DTL bypass)
-3. Monsoon rain & crowd surge (sheltered linkway priority)
+2. Major EWL track fault (triggers proactive DTL bypass & AI advice synthesis)
+3. Monsoon rain & crowd surge (PCDForecast high crowd pre-emption & sheltered linkways)
 """
 
 from typing import Dict, Any, List
@@ -25,7 +25,7 @@ SCENARIOS: Dict[str, Dict[str, Any]] = {
             "AffectedSegments": [],
             "Message": [
                 {
-                    "Content": "Train service on all lines is operating normally.",
+                    "Content": "[SMRT] Train services on all lines are operating normally. Station staff are available if you require assistance. Have a safe journey.",
                     "CreatedDate": "2026-09-18 07:05:00"
                 }
             ]
@@ -36,7 +36,17 @@ SCENARIOS: Dict[str, Dict[str, Any]] = {
             "EW14": "l",  # Raffles Place: Low
             "DT32": "l",  # Tampines DTL: Low
             "DT18": "l",  # Telok Ayer: Low
+            "NE17": "l",  # Punggol: Low
+            "CC23": "l",  # one-north: Low
+            "EW9": "l",   # Bedok: Low
+            "EW16": "l",  # Outram Park: Low
         },
+        "pcd_forecast": [
+            {"Station": "EW2", "StartTime": "07:30", "EndTime": "08:00", "CrowdLevel": "l"},
+            {"Station": "EW2", "StartTime": "08:00", "EndTime": "08:30", "CrowdLevel": "m"},
+            {"Station": "EW8", "StartTime": "08:00", "EndTime": "08:30", "CrowdLevel": "m"},
+            {"Station": "EW14", "StartTime": "08:00", "EndTime": "08:30", "CrowdLevel": "l"},
+        ],
         "weather": {
             "origin_forecast": "Fair (Day)",
             "origin_raining": False,
@@ -67,7 +77,7 @@ SCENARIOS: Dict[str, Dict[str, Any]] = {
             ],
             "Message": [
                 {
-                    "Content": "[EWL]: Due to a track point fault near Kembangan, please add 25 to 30 mins travel time between Bedok and Bugis. Free regular bus service is available.",
+                    "Content": "[SMRT] EWL Update: Due to a track point fault near Kembangan, please add 25 to 30 mins travel time between Bedok and Bugis. Free regular bus service is available. Station staff are assisting.",
                     "CreatedDate": "2026-09-18 07:14:22"
                 }
             ]
@@ -80,6 +90,11 @@ SCENARIOS: Dict[str, Dict[str, Any]] = {
             "DT32": "l",  # Tampines DTL: Low (clear bypass!)
             "DT18": "l",  # Telok Ayer: Low
         },
+        "pcd_forecast": [
+            {"Station": "EW2", "StartTime": "07:30", "EndTime": "08:00", "CrowdLevel": "h"},
+            {"Station": "EW2", "StartTime": "08:00", "EndTime": "08:30", "CrowdLevel": "h"},
+            {"Station": "EW8", "StartTime": "08:00", "EndTime": "08:30", "CrowdLevel": "h"},
+        ],
         "weather": {
             "origin_forecast": "Cloudy",
             "origin_raining": False,
@@ -101,7 +116,7 @@ SCENARIOS: Dict[str, Dict[str, Any]] = {
             "AffectedSegments": [],
             "Message": [
                 {
-                    "Content": "Heavy rain islandwide. Please exercise care on slippery platforms and footways.",
+                    "Content": "[SMRT] Advisory: Heavy rain islandwide. Please exercise care on slippery platforms and footways. High platform crowd expected at Tampines and Paya Lebar.",
                     "CreatedDate": "2026-09-18 07:10:00"
                 }
             ]
@@ -113,6 +128,11 @@ SCENARIOS: Dict[str, Dict[str, Any]] = {
             "DT32": "m",  # Tampines DTL: Moderate
             "DT18": "l",
         },
+        "pcd_forecast": [
+            {"Station": "EW2", "StartTime": "07:30", "EndTime": "08:00", "CrowdLevel": "m"},
+            {"Station": "EW2", "StartTime": "08:00", "EndTime": "08:30", "CrowdLevel": "h"},
+            {"Station": "EW8", "StartTime": "08:00", "EndTime": "08:30", "CrowdLevel": "h"},
+        ],
         "weather": {
             "origin_forecast": "Heavy Thundery Showers",
             "origin_raining": True,
@@ -141,4 +161,3 @@ def list_scenarios() -> List[Dict[str, Any]]:
         }
         for s in SCENARIOS.values()
     ]
-
