@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>StationBuddy — Smart Commuter Companion</title>
+  
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: '#2563eb',
+            ewl: '#009645',
+            dtl: '#005EC4',
+            nsl: '#D42E12',
+            bus: '#E02E24',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Google Maps Style CSS -->
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="bg-slate-950 text-slate-100 flex flex-col h-screen overflow-hidden select-none font-sans antialiased">
+
+  <!-- ================================================================= -->
+  <!-- GOOGLE MAPS FLOATING TOP PANEL: BRANDING, SEARCH, & TIMING        -->
+  <!-- ================================================================= -->
+  <div class="absolute top-0 left-0 right-0 z-30 p-3 flex flex-col gap-2 pointer-events-none max-w-lg mx-auto">
+    
+    <!-- Top Branding & Status Pill Bar -->
+    <div class="flex items-center justify-between pointer-events-auto">
+      
+      <!-- App Identity: StationBuddy -->
+      <div class="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2">
+        <div class="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shadow">
+          <i class="fa-solid fa-train-subway"></i>
+        </div>
+        <span class="font-bold text-sm tracking-tight text-white">StationBuddy</span>
+        <span id="source-badge" class="px-1.5 py-0.2 text-[10px] font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800 rounded-full">Normal</span>
+      </div>
+
+      <!-- Quick Action Controls: Persona Badge + Scenarios Toggle -->
+      <div class="flex items-center gap-1.5 pointer-events-auto">
+        <div class="bg-slate-900/90 backdrop-blur-md border border-slate-700 px-2.5 py-1.5 rounded-full shadow text-[11px] text-slate-300 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>Rachel (EWL)</span>
+        </div>
+        <button id="scenario-toggle-btn" class="bg-slate-900/90 backdrop-blur-md hover:bg-slate-800 active:bg-slate-700 border border-slate-700 text-indigo-300 px-3 py-1.5 rounded-full shadow text-xs font-medium flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-sliders text-indigo-400"></i>
+          <span>Scenarios</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Universal Search Box Card (Google Maps Style) -->
+    <div class="bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-2xl p-3 shadow-2xl pointer-events-auto flex flex-col gap-2.5">
+      
+      <!-- Origin & Destination Inputs with Connector Line -->
+      <div class="flex items-center gap-2.5">
+        
+        <!-- Pin Column -->
+        <div class="flex flex-col items-center justify-between h-14 py-1 shrink-0">
+          <div class="w-3 h-3 rounded-full border-2 border-blue-500 bg-blue-500/30"></div>
+          <div class="w-0.5 h-6 bg-slate-700"></div>
+          <div class="w-3 h-3 rounded-full border-2 border-rose-500 bg-rose-500"></div>
+        </div>
+
+        <!-- Inputs Column -->
+        <div class="flex-1 flex flex-col gap-1.5">
+          <!-- Origin -->
+          <div class="relative flex items-center">
+            <input 
+              id="origin-input" 
+              type="text" 
+              value="Blk 230 Tampines St 21 (Home)" 
+              placeholder="Enter starting location..." 
+              class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+            />
+          </div>
+          <!-- Destination -->
+          <div class="relative flex items-center">
+            <input 
+              id="dest-input" 
+              type="text" 
+              value="One Raffles Place, CBD (Office)" 
+              placeholder="Enter destination..." 
+              class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+            />
+          </div>
+        </div>
+
+        <!-- Swap Button -->
+        <button id="btn-swap-locations" title="Swap Origin and Destination" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white shrink-0 transition">
+          <i class="fa-solid fa-arrow-right-arrow-left text-xs rotate-90"></i>
+        </button>
+      </div>
+
+      <!-- Timing & Preferences Bar (Google Maps Style Options) -->
+      <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-300">
+        
+        <!-- Arrival Timing Picker -->
+        <div class="flex items-center gap-1.5">
+          <i class="fa-regular fa-clock text-blue-400"></i>
+          <span class="text-[11px] text-slate-400 font-medium">Arrive by:</span>
+          <select id="select-arrival-time" class="bg-slate-800 border border-slate-700 text-white font-semibold rounded-md px-2 py-0.5 text-xs focus:outline-none focus:border-blue-500">
+            <option value="08:30 AM">08:30 AM</option>
+            <option value="08:45 AM" selected>08:45 AM (Desk Target)</option>
+            <option value="09:00 AM">09:00 AM (Meeting)</option>
+            <option value="09:15 AM">09:15 AM</option>
+            <option value="09:30 AM">09:30 AM</option>
+          </select>
+        </div>
+
+        <!-- Weather Status Chip -->
+        <div id="weather-chip" class="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[11px] text-slate-300">
+          <i class="fa-solid fa-sun text-amber-400"></i>
+          <span>Fair</span>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- PROACTIVE TRAFFIC DETOUR / INCIDENT BANNER (Slides down on alert) -->
+    <!-- ================================================================= -->
+    <div id="alert-banner" class="pointer-events-auto rounded-xl p-3 border shadow-2xl transition-all duration-300 bg-emerald-950/80 border-emerald-700/80">
+      
+      <div class="flex items-center justify-between mb-1">
+        <div class="flex items-center gap-1.5">
+          <span id="alert-icon" class="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px]">
+            <i class="fa-solid fa-check"></i>
+          </span>
+          <span id="alert-status-label" class="text-[11px] font-bold uppercase tracking-wider text-emerald-400">On Schedule</span>
+        </div>
+        <span id="noise-filter-badge" class="text-[10px] px-1.5 py-0.5 bg-slate-800 text-slate-400 rounded border border-slate-700 font-mono">
+          Noise Filter: &lt;15m Silent
+        </span>
+      </div>
+
+      <div id="alert-headline" class="text-xs font-bold text-white leading-tight mb-0.5">
+        All EWL trains operating normally. Head out at 07:40 AM.
+      </div>
+      <div id="alert-detail" class="text-[11px] text-slate-300 leading-snug">
+        Estimated desk arrival at 08:24 AM (21 mins buffer before 08:45 deadline).
+      </div>
+
+      <!-- One-Tap Action Button when Disrupted -->
+      <div id="alert-action-row" class="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between hidden">
+        <span class="text-[11px] text-rose-300 font-medium flex items-center gap-1">
+          <i class="fa-solid fa-triangle-exclamation text-rose-400"></i> Meeting Risk
+        </span>
+        <button id="btn-accept-bypass" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold text-xs rounded-lg shadow flex items-center gap-1.5 transition">
+          <span>Switch to Downtown Line Bypass</span>
+          <i class="fa-solid fa-arrow-right text-[10px]"></i>
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- MAIN FULL-SCREEN MAP (OpenStreetMap Base)                         -->
+  <!-- ================================================================= -->
+  <main class="relative flex-1 w-full h-full overflow-hidden">
+    <div id="map" class="w-full h-full z-0"></div>
+
+    <!-- Underground Tunnel Mode Alert -->
+    <div id="offline-indicator" class="absolute top-48 left-3 z-10 px-3 py-1 bg-amber-950/90 text-amber-300 border border-amber-700 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-xl hidden">
+      <i class="fa-solid fa-wifi text-amber-400 animate-pulse"></i>
+      <span>Tunnel Mode: Offline Route Cached</span>
+    </div>
+
+    <!-- Floating Map Controls (Right Side) -->
+    <div class="absolute top-52 right-3 z-10 flex flex-col gap-2">
+      <button id="btn-recenter" title="Recenter Route" class="w-10 h-10 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-200 flex items-center justify-center shadow-lg transition">
+        <i class="fa-solid fa-location-crosshairs text-sm"></i>
+      </button>
+    </div>
+
+    <!-- Legal Map Attribution & Legend -->
+    <div class="absolute bottom-60 left-2 z-10 bg-slate-900/85 backdrop-blur px-2.5 py-1.5 rounded-lg border border-slate-800 text-[10px] text-slate-300 flex flex-col gap-1 shadow-lg pointer-events-auto">
+      <div class="flex items-center gap-2">
+        <span class="inline-block w-3 h-1 bg-emerald-500 rounded"></span>
+        <span>EWL</span>
+        <span class="inline-block w-3 h-1 bg-blue-500 rounded"></span>
+        <span>DTL (Bypass)</span>
+        <span class="inline-block w-3 h-1 bg-purple-500 rounded"></span>
+        <span>Bus 10e</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="inline-block w-3 h-1 bg-rose-500 border border-dashed border-rose-300"></span>
+        <span>Disrupted Segment (Bedok-Bugis)</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- ================================================================= -->
+  <!-- GOOGLE MAPS BOTTOM TRANSIT SHEET                                  -->
+  <!-- ================================================================= -->
+  <footer id="bottom-sheet" class="bg-slate-900 border-t border-slate-800 z-20 shrink-0 px-3 py-2 flex flex-col gap-2 max-h-56 overflow-y-auto">
+    
+    <!-- Drag Handle & Section Header -->
+    <div class="flex flex-col items-center pb-1">
+      <div class="w-10 h-1 bg-slate-700 rounded-full mb-1"></div>
+      <div class="w-full flex items-center justify-between text-xs text-slate-400 px-1">
+        <span class="font-bold uppercase tracking-wider text-[11px] text-slate-200">Recommended Routes</span>
+        <span class="text-[11px]">Target: <strong id="target-desk-label" class="text-white">08:45 AM</strong></span>
+      </div>
+    </div>
+
+    <!-- Route Transit Cards -->
+    <div class="grid grid-cols-1 gap-2" id="route-cards-list">
+      
+      <!-- Route 1: Primary East-West Line -->
+      <div id="card-primary-ewl" class="route-card p-2.5 rounded-xl border bg-slate-800/80 border-slate-700 flex items-center justify-between cursor-pointer transition">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold text-xs">
+            <i class="fa-solid fa-train"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="font-semibold text-xs text-white">East-West Line (Direct)</span>
+              <span id="ewl-crowd-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-amber-950 text-amber-300 border border-amber-800">CROWD: MOD</span>
+            </div>
+            <p id="ewl-route-meta" class="text-[11px] text-slate-400">Leaves 07:40 • 42 mins total</p>
+          </div>
+        </div>
+        <div class="text-right">
+          <div id="ewl-arrival-time" class="text-sm font-bold text-emerald-400">08:24 AM</div>
+          <div id="ewl-delay-tag" class="text-[10px] text-slate-400">On Time</div>
+        </div>
+      </div>
+
+      <!-- Route 2: Downtown Line Bypass -->
+      <div id="card-bypass-dtl" class="route-card p-2.5 rounded-xl border bg-slate-800/40 border-slate-700/60 flex items-center justify-between cursor-pointer transition hover:border-blue-500">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/40 flex items-center justify-center font-bold text-xs">
+            <i class="fa-solid fa-train-subway"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="font-semibold text-xs text-white">Downtown Line Bypass</span>
+              <span class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800">CROWD: LOW</span>
+            </div>
+            <p class="text-[11px] text-slate-400">Tampines DTL $\to$ Telok Ayer • 44 mins</p>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-sm font-bold text-blue-400">08:24 AM</div>
+          <div class="text-[10px] text-slate-400">Reliable Alternative</div>
+        </div>
+      </div>
+
+      <!-- Route 3: Express Bus 10e -->
+      <div id="card-bypass-bus10e" class="route-card p-2.5 rounded-xl border bg-slate-800/40 border-slate-700/60 flex items-center justify-between cursor-pointer transition hover:border-purple-500">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-purple-600/20 text-purple-400 border border-purple-500/40 flex items-center justify-center font-bold text-xs">
+            <i class="fa-solid fa-bus"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="font-semibold text-xs text-white">Express Bus 10e</span>
+              <span class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800">SEATS AVAIL</span>
+            </div>
+            <p class="text-[11px] text-slate-400">Expressway via ECP to CBD • 45 mins</p>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-sm font-bold text-slate-200">08:25 AM</div>
+          <div class="text-[10px] text-slate-400">Guaranteed Seat</div>
+        </div>
+      </div>
+
+    </div>
+  </footer>
+
+  <!-- ================================================================= -->
+  <!-- JUDGE SCENARIO DRAWER                                             -->
+  <!-- ================================================================= -->
+  <div id="scenario-drawer" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex flex-col justify-end hidden transition-opacity">
+    <div class="bg-slate-900 border-t border-slate-700 rounded-t-2xl p-4 max-w-md mx-auto w-full shadow-2xl flex flex-col gap-3">
+      
+      <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-sliders text-indigo-400"></i>
+          <h2 class="text-sm font-bold text-white">StationBuddy Scenario Simulator</h2>
+        </div>
+        <button id="scenario-close-btn" class="w-7 h-7 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center hover:text-white">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-400 leading-relaxed">
+        Live disruption feeds are usually empty. Switch presets to test proactive delay alerts and automatic bypass calculations:
+      </p>
+
+      <div class="flex flex-col gap-2" id="scenarios-options-container">
+        <!-- Dynamically injected -->
+      </div>
+
+      <div class="pt-2 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+        <span>Noise Filter Threshold:</span>
+        <select id="select-noise-threshold" class="bg-slate-800 border border-slate-700 text-slate-200 rounded px-2 py-1 text-xs">
+          <option value="10">10 min</option>
+          <option value="15" selected>15 min (Rachel's setting)</option>
+          <option value="20">20 min</option>
+        </select>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- App Modular Scripts (Teammate A) -->
+  <script type="module" src="/static/js/main.js"></script>
+</body>
+</html>

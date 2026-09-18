@@ -1,0 +1,100 @@
+/* Mobile-First Custom Styles for Rachel's Commuter Companion */
+
+:root {
+  --color-ewl: #009645;
+  --color-dtl: #005EC4;
+  --color-disruption: #EF4444;
+}
+
+body {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Custom Leaflet Map Overrides */
+.leaflet-container {
+  background: #0f172a !important; /* Dark Slate to match UI */
+  font-family: inherit;
+}
+
+/* Custom Tile Filter for Sleek Modern Look */
+.dark-tiles .leaflet-tile {
+  filter: brightness(0.85) invert(0.9) contrast(1.1) hue-rotate(185deg);
+}
+
+/* Leaflet Attribution Bar styling */
+.leaflet-control-attribution {
+  background: rgba(15, 23, 42, 0.85) !important;
+  color: #94a3b8 !important;
+  font-size: 9px !important;
+  padding: 2px 6px !important;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+}
+
+.leaflet-control-attribution a {
+  color: #38bdf8 !important;
+  text-decoration: none;
+}
+
+/* Station Marker Pin */
+.station-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+}
+
+.pin-ewl {
+  background-color: var(--color-ewl);
+}
+
+.pin-dtl {
+  background-color: var(--color-dtl);
+}
+
+.pin-disrupted {
+  background-color: var(--color-disruption);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.9);
+  animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+/* Active Route Highlight Card */
+.route-card.active-route {
+  border-color: #3b82f6 !important;
+  background-color: rgba(30, 41, 59, 0.9) !important;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
