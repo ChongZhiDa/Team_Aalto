@@ -14,9 +14,31 @@ from flask import Flask, render_template, jsonify, request
 from src.engine import CommuterEngine, RACHEL_PROFILE
 from src.scenarios import list_scenarios, SCENARIO_NORMAL
 from src.canonical_lines import LINE_COLORS
+from src.routing.multimodal_router import MultimodalRouter
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 engine = CommuterEngine()
+_router = MultimodalRouter()
+
+
+@app.route("/api/route", methods=["GET"])
+def get_arbitrary_route():
+    """
+    Calls T2's graph-based pathfinder for arbitrary origin/destination pairs.
+    Query params: origin=<station name>&destination=<station name>&rain=<0|1>
+    """
+    origin = (request.args.get("origin") or "").strip()
+    dest = (request.args.get("destination") or "").strip()
+    rain_active = request.args.get("rain", "0") == "1"
+
+    if not origin or not dest:
+        return jsonify({"error": "origin and destination are required"}), 400
+
+    result = _router.route_arbitrary_commute(origin, dest, rain_active=rain_active)
+    if result is None:
+        return jsonify({"error": f"No route found between '{origin}' and '{dest}'"}), 404
+
+    return jsonify(result)
 
 
 @app.route("/")
