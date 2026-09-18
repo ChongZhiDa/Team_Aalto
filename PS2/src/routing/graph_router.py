@@ -440,3 +440,15 @@ class StationGraphRouter:
             paths.append(alt_path)
 
         return paths
+
+    def get_all_station_names(self) -> List[str]:
+        """Returns a deduplicated list of all canonical station names in the graph."""
+        seen = set()
+        names: List[str] = []
+        for line_stations in MRT_LINES.values():
+            for stn in line_stations:
+                name = stn["name"]
+                if name not in seen:
+                    seen.add(name)
+                    names.append(name)
+        return names

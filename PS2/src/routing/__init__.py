@@ -36,6 +36,7 @@ from .graph_router import (
     INTERCHANGE_TRANSFER_PENALTIES,
 )
 from .multimodal_router import MultimodalRouter
+from .location_resolver import resolve_location
 
 __all__ = [
     "ORIGIN_POINT",
@@ -59,4 +60,5 @@ __all__ = [
     "MRT_LINES",
     "INTERCHANGE_TRANSFER_PENALTIES",
     "MultimodalRouter",
+    "resolve_location",
 ]
