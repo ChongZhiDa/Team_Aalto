@@ -8,7 +8,8 @@ API client package for external data sources:
 from .datamall_client import DataMallClient
 from .weather_client import WeatherClient
 from .onemap_client import OneMapClient
-from .cache_manager import SimpleCache
+from .cache_manager import SimpleCache, RateLimiter
 
-__all__ = ["DataMallClient", "WeatherClient", "OneMapClient", "SimpleCache"]
+__all__ = ["DataMallClient", "WeatherClient", "OneMapClient", "SimpleCache", "RateLimiter"]
+
 

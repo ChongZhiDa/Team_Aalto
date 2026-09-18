@@ -2,12 +2,15 @@
 Unit tests for API clients and Cache Manager.
 """
 
+import time
+import threading
 import unittest
-from src.api.cache_manager import SimpleCache
+from src.api.cache_manager import SimpleCache, RateLimiter
 from src.api.datamall_client import DataMallClient
 from src.api.weather_client import WeatherClient
 from src.api.onemap_client import OneMapClient
 from src.canonical_lines import normalize_alert_line, normalize_pcd_line
+
 
 
 
@@ -102,8 +105,69 @@ class TestAPIModule(unittest.TestCase):
         self.assertGreater(route["total_distance_m"], 0)
         self.assertGreater(route["total_duration_min"], 0)
 
+    def test_cache_thread_safety(self):
+        """SimpleCache supports concurrent multi-threaded reads and writes without error."""
+        cache = SimpleCache(default_ttl_seconds=10, max_size=100)
+        threads = []
+        errors = []
+
+        def worker(thread_id: int):
+            try:
+                for i in range(50):
+                    cache.set(f"key_{thread_id}_{i}", f"val_{i}")
+                    val = cache.get(f"key_{thread_id}_{i}")
+                    if val != f"val_{i}":
+                        errors.append(f"Mismatch in thread {thread_id}: {val}")
+            except Exception as e:
+                errors.append(str(e))
+
+        for tid in range(8):
+            t = threading.Thread(target=worker, args=(tid,))
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+
+        self.assertEqual(len(errors), 0, f"Thread errors: {errors}")
+
+    def test_cache_custom_ttl_and_eviction(self):
+        """SimpleCache respects individual item TTL and enforces max capacity bounds."""
+        cache = SimpleCache(default_ttl_seconds=60, max_size=5)
+
+        # Set item with very short TTL
+        cache.set("short_lived", "data", ttl=0.01)
+        time.sleep(0.03)
+        self.assertIsNone(cache.get("short_lived"))
+
+        # Test capacity bounds
+        for i in range(10):
+            cache.set(f"k_{i}", f"v_{i}")
+
+        # Size must never exceed max_size (5)
+        self.assertLessEqual(cache.size(), 5)
+
+    def test_rate_limiter(self):
+        """RateLimiter permits up to capacity and throttles exceeding requests."""
+        limiter = RateLimiter(max_calls=3, period_seconds=10.0)
+        self.assertTrue(limiter.acquire(blocking=False))
+        self.assertTrue(limiter.acquire(blocking=False))
+        self.assertTrue(limiter.acquire(blocking=False))
+        # 4th immediate call should be throttled
+        self.assertFalse(limiter.acquire(blocking=False))
+
+    def test_datamall_bundle_concurrent(self):
+        """DataMallClient get_live_commute_bundle retrieves alerts, crowd, and bus concurrently."""
+        client = DataMallClient(api_key="")
+        bundle = client.get_live_commute_bundle(train_line="EWL", bus_stop_code="76239", bus_service_no="10e")
+        self.assertIn("alerts", bundle)
+        self.assertIn("pcd", bundle)
+        self.assertIn("bus_load", bundle)
+        self.assertEqual(bundle["alerts"]["Status"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
