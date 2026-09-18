@@ -544,9 +544,41 @@ class MultimodalRouter:
         arr_hour_disp = arr_hour if arr_hour <= 12 else arr_hour - 12
         arrival_str = f"{arr_hour_disp:02d}:{arr_min_val:02d} {ampm}"
 
-        # --- Build legs ---
-        legs: List[Dict[str, Any]] = [
-            {
+        MRT_LINE_NAMES = {
+            "EWL": "East-West Line",
+            "DTL": "Downtown Line",
+            "NEL": "North East Line",
+            "CCL": "Circle Line",
+            "NSL": "North-South Line",
+            "TEL": "Thomson-East Coast Line",
+        }
+
+        # --- Build legs: First mile from exact house address to transit node ---
+        legs: List[Dict[str, Any]] = []
+
+        if origin_resolved.get("needs_feeder_bus"):
+            # Doorstep is > 600m from MRT: walk to nearby bus stop + feeder bus
+            walk_to_stop_min = 2
+            bus_ride_min = max(3, walk_origin_min - walk_to_stop_min)
+            legs.append({
+                "mode": "WALK",
+                "name": f"Walk from {origin_resolved['display']} to nearest Bus Stop",
+                "duration": f"{walk_to_stop_min} min",
+                "distance": "150m",
+                "sheltered_percent": 60,
+                "rain_delay_min": rain_origin_add,
+                "is_first_mile": True,
+            })
+            legs.append({
+                "mode": "BUS",
+                "name": f"Feeder Bus to {origin_station} MRT Interchange",
+                "duration": f"{bus_ride_min} min",
+                "distance": f"{origin_resolved['walk_m'] - 150}m",
+                "sheltered_percent": 100,
+                "is_feeder_bus": True,
+            })
+        else:
+            legs.append({
                 "mode": "WALK",
                 "name": f"Walk from {origin_resolved['display']} to {origin_station} MRT"
                         + (" (rain - add time)" if rain_origin_add else ""),
@@ -554,23 +586,30 @@ class MultimodalRouter:
                 "distance": f"{origin_resolved['walk_m']}m",
                 "sheltered_percent": 70,
                 "rain_delay_min": rain_origin_add,
-            }
-        ]
+                "is_first_mile": True,
+            })
 
         # Train legs (grouped by line with interchange walk legs)
         if path["segments"]:
             current_line = path["segments"][0]["line"]
             start_stn = path["segments"][0]["from_station"]
+            current_stations = [start_stn.title()]
             hop_count = 0
 
             for i, seg in enumerate(path["segments"]):
+                current_stations.append(seg["to_station"].title())
                 if seg["line"] != current_line:
                     end_stn = path["segments"][i - 1]["to_station"]
                     legs.append({
                         "mode": "TRAIN",
                         "name": f"{current_line}: {start_stn.title()} to {end_stn.title()}",
+                        "line": current_line,
+                        "line_name": MRT_LINE_NAMES.get(current_line, f"{current_line} Line"),
                         "duration": f"{int(round(hop_count * 2.3))} min",
                         "stops": hop_count,
+                        "stations": current_stations[:-1],
+                        "from_station": start_stn.title(),
+                        "to_station": end_stn.title(),
                     })
                     penalty = seg["transfer_penalty_applied"]
                     legs.append({
@@ -579,9 +618,13 @@ class MultimodalRouter:
                         "duration": f"{penalty} min",
                         "distance": "180m",
                         "sheltered_percent": 100,
+                        "is_transfer": True,
+                        "transfer_from": current_line,
+                        "transfer_to": seg["line"],
                     })
                     current_line = seg["line"]
                     start_stn = end_stn
+                    current_stations = [start_stn.title(), seg["to_station"].title()]
                     hop_count = 1
                 else:
                     hop_count += 1
@@ -590,19 +633,46 @@ class MultimodalRouter:
             legs.append({
                 "mode": "TRAIN",
                 "name": f"{current_line}: {start_stn.title()} to {last_stn.title()}",
+                "line": current_line,
+                "line_name": MRT_LINE_NAMES.get(current_line, f"{current_line} Line"),
                 "duration": f"{int(round(hop_count * 2.3))} min",
                 "stops": hop_count,
+                "stations": current_stations,
+                "from_station": start_stn.title(),
+                "to_station": last_stn.title(),
             })
 
-        legs.append({
-            "mode": "WALK",
-            "name": f"Walk from {dest_station} MRT to {dest_resolved['display']}"
-                    + (" (rain - add time)" if rain_dest_add else ""),
-            "duration": f"{walk_dest_min} min",
-            "distance": f"{dest_resolved['walk_m']}m",
-            "sheltered_percent": 75,
-            "rain_delay_min": rain_dest_add,
-        })
+        # --- Last mile leg: From MRT to final destination address ---
+        if dest_resolved.get("needs_feeder_bus"):
+            bus_dest_min = max(3, dest_resolved["walk_min"] - 2)
+            legs.append({
+                "mode": "BUS",
+                "name": f"Feeder Bus from {dest_station} to {dest_resolved['display']}",
+                "duration": f"{bus_dest_min} min",
+                "distance": f"{dest_resolved['walk_m']}m",
+                "sheltered_percent": 100,
+                "is_feeder_bus": True,
+            })
+            legs.append({
+                "mode": "WALK",
+                "name": f"Walk from Bus Stop to {dest_resolved['display']}",
+                "duration": f"2 min",
+                "distance": "140m",
+                "sheltered_percent": 75,
+                "rain_delay_min": rain_dest_add,
+                "is_last_mile": True,
+            })
+        else:
+            legs.append({
+                "mode": "WALK",
+                "name": f"Walk from {dest_station} MRT to {dest_resolved['display']}"
+                        + (" (rain - add time)" if rain_dest_add else ""),
+                "duration": f"{walk_dest_min} min",
+                "distance": f"{dest_resolved['walk_m']}m",
+                "sheltered_percent": 75,
+                "rain_delay_min": rain_dest_add,
+                "is_last_mile": True,
+            })
 
         lines_str = " -> ".join(path["lines"])
 
@@ -660,6 +730,7 @@ class MultimodalRouter:
             "sheltered_percent": 80,
             "error": False,
             "legs": legs,
+            "path_segments": path.get("segments", []),
             "polyline": route_polyline,
             "route_polyline": route_polyline,
             "coordinates": route_polyline,

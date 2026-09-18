@@ -8,7 +8,18 @@
 export class UIController {
   constructor(handlers = {}) {
     this.handlers = handlers; // onSelectRoute, onSwitchScenario, onThresholdChange, onArrivalChange, onLocationChange, onRecenter
+    this.defaultRouteCardsHtml = document.getElementById('route-cards-list')?.innerHTML || '';
     this.bindEvents();
+  }
+
+  escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   bindEvents() {
@@ -241,7 +252,6 @@ export class UIController {
         document.getElementById('scenario-drawer')?.classList.add('hidden');
       });
     });
-
     // Autocomplete dropdowns for search inputs
     this.setupAutocomplete('origin-input', 'origin-suggestions');
     this.setupAutocomplete('dest-input', 'dest-suggestions');
@@ -304,7 +314,7 @@ export class UIController {
 
       dropdown.querySelectorAll('.suggestion-item').forEach(el => {
         el.addEventListener('mousedown', (e) => {
-          e.preventDefault();
+          e.preventDefault(); // Prevents blur before click registers
           const val = el.getAttribute('data-value');
           if (val) {
             input.value = val;
@@ -355,6 +365,13 @@ export class UIController {
       setTimeout(() => dropdown.classList.add('hidden'), 200);
     });
 
+    input.addEventListener('change', () => {
+      const originInput = document.getElementById('origin-input');
+      const destInput = document.getElementById('dest-input');
+      if (this.handlers.onLocationChange && originInput && destInput) {
+        this.handlers.onLocationChange(originInput.value, destInput.value);
+      }
+    });
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         dropdown.classList.add('hidden');
@@ -520,6 +537,19 @@ export class UIController {
 
   updateRouteCards(data, activeRouteId) {
     const routes = data.routes || {};
+    const ewl = routes.primary_ewl;
+    const container = document.getElementById('route-cards-list');
+
+    if (data.is_custom && ewl) {
+      this.renderCustomRouteSteps(ewl);
+      this.highlightActiveCard(activeRouteId);
+      return;
+    }
+
+    // Default Corridor Mode: Restore 3 alternative routes if needed
+    if (container && this.defaultRouteCardsHtml && !document.getElementById('card-bypass-dtl')) {
+      container.innerHTML = this.defaultRouteCardsHtml;
+    }
 
     const ewlIcon = document.getElementById('ewl-icon');
     const dtlCard = document.getElementById('card-bypass-dtl');
@@ -811,7 +841,179 @@ export class UIController {
       }
     }
 
+    // Custom route step cards for First Mile & Last Mile breakdown
+    if (data.is_custom && ewl.legs && ewl.legs.length > 0) {
+      const card2Title = document.querySelector('#card-bypass-dtl .font-semibold');
+      const card2Meta = document.querySelector('#card-bypass-dtl p');
+      const card2Time = document.querySelector('#card-bypass-dtl .font-bold.text-sm');
+      const card2Tag = document.querySelector('#card-bypass-dtl .text-\\[10px\\]');
+      const card2Chip = document.querySelector('#card-bypass-dtl .rounded');
+      
+      const firstLeg = ewl.legs[0];
+      if (card2Title) card2Title.textContent = `Step 1: ${firstLeg.mode}`;
+      if (card2Meta) card2Meta.textContent = `${firstLeg.name} (${firstLeg.distance || ''})`;
+      if (card2Time) card2Time.textContent = firstLeg.duration;
+      if (card2Tag) card2Tag.textContent = firstLeg.sheltered_percent ? `${firstLeg.sheltered_percent}% sheltered` : 'Doorstep';
+      if (card2Chip) card2Chip.textContent = 'FIRST MILE';
+
+      const card3Title = document.querySelector('#card-bypass-bus10e .font-semibold');
+      const card3Meta = document.querySelector('#card-bypass-bus10e p');
+      const card3Time = document.querySelector('#card-bypass-bus10e .font-bold.text-sm');
+      const card3Tag = document.querySelector('#card-bypass-bus10e .text-\\[10px\\]');
+      const card3Chip = document.querySelector('#card-bypass-bus10e .rounded');
+      
+      const lastLeg = ewl.legs[ewl.legs.length - 1];
+      if (card3Title) card3Title.textContent = `Final Step: ${lastLeg.mode}`;
+      if (card3Meta) card3Meta.textContent = `${lastLeg.name} (${lastLeg.distance || ''})`;
+      if (card3Time) card3Time.textContent = lastLeg.duration;
+      if (card3Tag) card3Tag.textContent = 'Destination Doorstep';
+      if (card3Chip) card3Chip.textContent = 'LAST MILE';
+    }
+
     this.highlightActiveCard(activeRouteId);
+  }
+
+  renderCustomRouteSteps(ewl) {
+    const container = document.getElementById('route-cards-list');
+    if (!container || !ewl) return;
+
+    const legs = ewl.legs || [];
+    const lineStyles = {
+      'NEL': { badge: 'bg-purple-950 text-purple-300 border-purple-800', iconBg: 'bg-purple-600/20 text-purple-400 border-purple-500/40' },
+      'CCL': { badge: 'bg-amber-950 text-amber-300 border-amber-800', iconBg: 'bg-amber-600/20 text-amber-400 border-amber-500/40' },
+      'NSL': { badge: 'bg-rose-950 text-rose-300 border-rose-800', iconBg: 'bg-red-600/20 text-red-400 border-red-500/40' },
+      'EWL': { badge: 'bg-emerald-950 text-emerald-300 border-emerald-800', iconBg: 'bg-emerald-600/20 text-emerald-400 border-emerald-500/40' },
+      'DTL': { badge: 'bg-blue-950 text-blue-300 border-blue-800', iconBg: 'bg-blue-600/20 text-blue-400 border-blue-500/40' },
+      'TEL': { badge: 'bg-yellow-950 text-yellow-300 border-yellow-800', iconBg: 'bg-yellow-600/20 text-yellow-400 border-yellow-500/40' },
+    };
+
+    let html = `
+      <!-- Overall Route Summary Card -->
+      <div id="card-primary-ewl" class="route-card p-2.5 rounded-xl border bg-slate-800/90 border-blue-500/60 shadow-lg flex items-center justify-between transition cursor-pointer active-route">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/40 flex items-center justify-center font-bold text-xs shrink-0">
+            <i class="fa-solid fa-diamond-turn-right"></i>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="font-semibold text-xs text-white truncate">${this.escapeHtml(ewl.title || 'Custom Route')}</span>
+              <span class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-amber-950 text-amber-300 border border-amber-800">CROWD: MOD</span>
+            </div>
+            <p class="text-[11px] text-slate-400 truncate">${this.escapeHtml(ewl.status || '')} • ${ewl.total_duration_min} mins total</p>
+          </div>
+        </div>
+        <div class="text-right shrink-0 ml-2">
+          <div class="text-sm font-bold text-emerald-400">${ewl.estimated_arrival}</div>
+          <div class="text-[10px] text-emerald-400 font-medium">On Time</div>
+        </div>
+      </div>
+
+      <!-- Step-by-Step Directions Header -->
+      <div class="flex items-center justify-between px-1 pt-1.5 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-t border-slate-800/60">
+        <span><i class="fa-solid fa-list-ol mr-1 text-blue-400"></i> Step-by-Step Directions (${legs.length} Steps)</span>
+        <span class="text-slate-500 font-normal lowercase">${ewl.total_duration_min} mins total</span>
+      </div>
+    `;
+
+    legs.forEach((leg, idx) => {
+      const stepNum = idx + 1;
+      if (leg.mode === 'TRAIN') {
+        const line = leg.line || 'MRT';
+        const style = lineStyles[line] || { badge: 'bg-blue-950 text-blue-300 border-blue-800', iconBg: 'bg-blue-600/20 text-blue-400 border-blue-500/40' };
+        const stopsCount = leg.stops || 1;
+        const stopsText = `${stopsCount} ${stopsCount === 1 ? 'stop' : 'stops'}`;
+        const stationsPath = leg.stations && leg.stations.length > 0 
+          ? `<div class="text-[10px] text-slate-400 mt-0.5 truncate"><i class="fa-solid fa-angles-right text-[8px] text-slate-500 mr-1"></i>${leg.stations.map(s => this.escapeHtml(s)).join(' ➔ ')}</div>`
+          : '';
+
+        html += `
+          <div class="p-2.5 rounded-xl border bg-slate-800/60 border-slate-700/80 flex items-center justify-between transition hover:border-slate-600">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-8 h-8 rounded-lg ${style.iconBg} flex items-center justify-center font-bold text-xs shrink-0">
+                <i class="fa-solid fa-train-subway"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="font-semibold text-xs text-white">Step ${stepNum}: Take ${this.escapeHtml(leg.line_name || `${line} Line`)}</span>
+                  <span class="px-1.5 py-0.2 text-[9px] font-bold rounded border ${style.badge}">${line} (${stopsText.toUpperCase()})</span>
+                </div>
+                <p class="text-[11px] text-slate-300 truncate">${this.escapeHtml(leg.name)} • <strong>${stopsText}</strong></p>
+                ${stationsPath}
+              </div>
+            </div>
+            <div class="text-right shrink-0 ml-2">
+              <div class="text-xs font-bold text-blue-300">${leg.duration}</div>
+              <div class="text-[10px] text-slate-400">${stopsText}</div>
+            </div>
+          </div>
+        `;
+      } else if (leg.mode === 'BUS') {
+        html += `
+          <div class="p-2.5 rounded-xl border bg-slate-800/60 border-slate-700/80 flex items-center justify-between transition hover:border-slate-600">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-8 h-8 rounded-lg bg-teal-600/20 text-teal-400 border border-teal-500/40 flex items-center justify-center font-bold text-xs shrink-0">
+                <i class="fa-solid fa-bus"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="font-semibold text-xs text-white">Step ${stepNum}: Feeder Bus</span>
+                  <span class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-teal-950 text-teal-300 border border-teal-800">FEEDER BUS</span>
+                </div>
+                <p class="text-[11px] text-slate-300 truncate">${this.escapeHtml(leg.name)}${leg.distance ? ` (${leg.distance})` : ''}</p>
+              </div>
+            </div>
+            <div class="text-right shrink-0 ml-2">
+              <div class="text-xs font-bold text-teal-300">${leg.duration}</div>
+              <div class="text-[10px] text-slate-400">Frequent Service</div>
+            </div>
+          </div>
+        `;
+      } else {
+        // WALK
+        let badgeText = 'WALK';
+        let badgeColor = 'bg-slate-800 text-slate-300 border-slate-700';
+        let iconBg = 'bg-sky-600/20 text-sky-400 border-sky-500/40';
+        let subText = leg.sheltered_percent ? `${leg.sheltered_percent}% sheltered` : 'Doorstep';
+
+        if (leg.is_first_mile) {
+          badgeText = 'FIRST MILE';
+          badgeColor = 'bg-sky-950 text-sky-300 border-sky-800';
+        } else if (leg.is_last_mile) {
+          badgeText = 'LAST MILE';
+          badgeColor = 'bg-emerald-950 text-emerald-300 border-emerald-800';
+          iconBg = 'bg-emerald-600/20 text-emerald-400 border-emerald-500/40';
+          subText = 'Destination Doorstep';
+        } else if (leg.is_transfer) {
+          badgeText = 'INTERCHANGE';
+          badgeColor = 'bg-indigo-950 text-indigo-300 border-indigo-800';
+          iconBg = 'bg-indigo-600/20 text-indigo-400 border-indigo-500/40';
+          subText = 'Sheltered Linkway';
+        }
+
+        html += `
+          <div class="p-2.5 rounded-xl border bg-slate-800/60 border-slate-700/80 flex items-center justify-between transition hover:border-slate-600">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center font-bold text-xs shrink-0">
+                <i class="fa-solid fa-person-walking"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="font-semibold text-xs text-white">Step ${stepNum}: ${leg.is_transfer ? 'Interchange Transfer' : 'Walk'}</span>
+                  <span class="px-1.5 py-0.2 text-[9px] font-bold rounded border ${badgeColor}">${badgeText}</span>
+                </div>
+                <p class="text-[11px] text-slate-300 truncate">${this.escapeHtml(leg.name)}${leg.distance ? ` (${leg.distance})` : ''}</p>
+              </div>
+            </div>
+            <div class="text-right shrink-0 ml-2">
+              <div class="text-xs font-bold text-slate-200">${leg.duration}</div>
+              <div class="text-[10px] text-slate-400">${subText}</div>
+            </div>
+          </div>
+        `;
+      }
+    });
+
+    container.innerHTML = html;
   }
 
   renderRouteLegs(containerId, legs, corridorColor = 'emerald', exitInfo = null) {

@@ -20,6 +20,7 @@ from src.routing.geojson_loader import load_geojson_stations, get_station_metada
 from src.routing.door_to_door import get_walking_legs, compute_walking_summary
 from src.routing.multimodal_router import MultimodalRouter
 from src.routing.graph_router import StationGraphRouter, get_transfer_penalty
+from src.routing.location_resolver import resolve_location
 
 
 class TestRoutingModule(unittest.TestCase):
@@ -167,9 +168,61 @@ class TestRoutingModule(unittest.TestCase):
         self.assertIn("Lift out of service", outage["status"])
         self.assertEqual(outage["total_duration_min"], 47)
 
+    # --- Teammate 2 Extra: Fuzzy Matching for Stations & Landmarks ---
+    def test_tc_rot_08_fuzzy_station_and_landmark_matching(self):
+        """TC-ROT-08: Verifies fuzzy matching for MRT station names and landmarks."""
+        all_stations = self.graph_router.get_all_station_names()
+
+        # Station names with extra noise
+        res_mrt = resolve_location("jurong east mrt station", all_stations)
+        self.assertIsNotNone(res_mrt)
+        self.assertEqual(res_mrt["station"], "Jurong East")
+
+        # Hyphenated / casing variance
+        res_on = resolve_location("one north", all_stations)
+        self.assertIsNotNone(res_on)
+        self.assertEqual(res_on["station"], "one-north")
+
+        # Major landmarks and abbreviations
+        res_nus = resolve_location("NUS", all_stations)
+        self.assertIsNotNone(res_nus)
+        self.assertEqual(res_nus["station"], "Kent Ridge")
+
+        res_sgh = resolve_location("SGH", all_stations)
+        self.assertIsNotNone(res_sgh)
+        self.assertEqual(res_sgh["station"], "Outram Park")
+
+    # --- Teammate 2 Extra: Postal Code Address Resolution & Door-to-Door Routing ---
+    def test_tc_rot_09_postal_code_address_resolution(self):
+        """TC-ROT-09: Verifies 6-digit Singapore postal code resolution to exact house address and door-to-door transit legs."""
+        # Standalone postal code -> resolves to exact HDB block / building
+        res_postal = resolve_location("341106")
+        self.assertIsNotNone(res_postal)
+        self.assertIn(res_postal["match_type"], ["exact_doorstep_address", "postal_code"])
+        self.assertIn("106A", res_postal["display"])
+        self.assertEqual(res_postal["station"], "Potong Pasir")
+        self.assertGreater(res_postal["walk_m"], 0)
+
+        # 'S' prefix format
+        res_sprefix = resolve_location("S018956")
+        self.assertIsNotNone(res_sprefix)
+        self.assertIn(res_sprefix["station"], ["Raffles Place", "Bayfront"])
+
+        # Door-to-door routing starting from exact house address
+        route = self.router.route_door_to_door(
+            "Blk 106A Bidadari Park Dr Singapore 341106",
+            "10 Bayfront Avenue Singapore 018956"
+        )
+        self.assertFalse(route.get("error", True))
+        # First leg is a walk from the exact house address to the next transport node (Potong Pasir MRT)
+        self.assertEqual(route["legs"][0]["mode"], "WALK")
+        self.assertIn("106A Bidadari", route["legs"][0]["name"])
+        self.assertIn("Potong Pasir", route["legs"][0]["name"])
+        self.assertGreater(route["total_duration_min"], 0)
+
     # --- Postal Sectors, NTU 639798 & Polyline Attachment Tests ---
-    def test_tc_rot_08_postal_sectors_and_ntu_resolution(self):
-        """TC-ROT-08: Verifies postal sector mappings for Bedok (46-48) and Jurong/Pioneer (60-64), and NTU 639798."""
+    def test_tc_rot_10_postal_sectors_and_ntu_resolution(self):
+        """TC-ROT-10: Verifies postal sector mappings for Bedok (46-48) and Jurong/Pioneer (60-64), and NTU 639798."""
         from src.routing.location_resolver import resolve_location, get_pedestrian_path
 
         # 6-digit postal code for NTU
@@ -200,8 +253,8 @@ class TestRoutingModule(unittest.TestCase):
         self.assertEqual(len(waypoints), 2)
         self.assertGreater(dist_m, 1000)
 
-    def test_tc_rot_09_custom_and_door_to_door_polyline_attachment(self):
-        """TC-ROT-09: Verifies custom router and door-to-door router attach polyline and station coordinates."""
+    def test_tc_rot_11_custom_and_door_to_door_polyline_attachment(self):
+        """TC-ROT-11: Verifies custom router and door-to-door router attach polyline and station coordinates."""
         from src.intelligence.custom_router import create_custom_user_route
 
         # Custom route from NTU postal code to Raffles Place
