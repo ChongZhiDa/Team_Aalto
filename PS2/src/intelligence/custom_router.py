@@ -208,7 +208,6 @@ def _enrich_route_map_geometry(
     if dest_loc and dest_loc.get("coordinates"):
         route["destination_coords"] = dest_loc["coordinates"]
 
-
 def create_custom_user_route(
     origin: Optional[str] = None, destination: Optional[str] = None,
     name: Optional[str] = None, departure_time: Optional[str] = None,
