@@ -35,6 +35,94 @@ export class MapController {
     const layers = data.map_layers;
     const isEwlDisrupted = data.decision.is_delayed;
 
+    // --- Custom Door-to-Door Route Rendering ---
+    if (layers.is_custom) {
+      const allBounds = [];
+
+      // 1. Origin (Start Doorstep / House)
+      if (layers.origin && layers.origin.coords) {
+        const homeIcon = L.divIcon({
+          className: '',
+          html: '<div class="w-8 h-8 rounded-full bg-emerald-600 border-2 border-white flex items-center justify-center text-white text-xs shadow-xl"><i class="fa-solid fa-house"></i></div>',
+          iconSize: [32, 32],
+          iconAnchor: [16, 16]
+        });
+        L.marker(layers.origin.coords, { icon: homeIcon })
+          .addTo(this.layersGroup)
+          .bindPopup(`<b>Start Location</b><br>${layers.origin.name}`);
+        allBounds.push(layers.origin.coords);
+      }
+
+      // 2. Destination (Arrival Doorstep)
+      if (layers.destination && layers.destination.coords) {
+        const destIcon = L.divIcon({
+          className: '',
+          html: '<div class="w-8 h-8 rounded-full bg-rose-600 border-2 border-white flex items-center justify-center text-white text-xs shadow-xl"><i class="fa-solid fa-flag-checkered"></i></div>',
+          iconSize: [32, 32],
+          iconAnchor: [16, 16]
+        });
+        L.marker(layers.destination.coords, { icon: destIcon })
+          .addTo(this.layersGroup)
+          .bindPopup(`<b>Destination</b><br>${layers.destination.name}`);
+        allBounds.push(layers.destination.coords);
+      }
+
+      // 3. Walking legs (dashed lines connecting house to station)
+      if (layers.walking_legs) {
+        Object.values(layers.walking_legs).forEach(walk => {
+          if (walk.coords && walk.coords.length >= 2) {
+            L.polyline(walk.coords, {
+              color: '#94a3b8',
+              weight: 4,
+              dashArray: '5, 7',
+              opacity: 0.95
+            }).addTo(this.layersGroup).bindPopup(`<b>Walking Route</b><br>${walk.name || 'Doorstep connection'}`);
+            walk.coords.forEach(c => allBounds.push(c));
+          }
+        });
+      }
+
+      // 4. Custom transit track polyline
+      if (layers.custom_track && layers.custom_track.length >= 2) {
+        const trackColor = layers.track_color || '#2563eb';
+        L.polyline(layers.custom_track, {
+          color: trackColor,
+          weight: 6,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }).addTo(this.layersGroup).bindPopup(`<b>Transit Route</b><br>${layers.route_summary || 'MRT Route'}`);
+        layers.custom_track.forEach(c => allBounds.push(c));
+      }
+
+      // 5. Stations along the route
+      if (layers.custom_stations) {
+        layers.custom_stations.forEach(stn => {
+          const pinClass = stn.line === 'NEL' ? 'bg-purple-600' : (stn.line === 'DTL' ? 'bg-blue-600' : (stn.line === 'EWL' ? 'bg-emerald-600' : 'bg-slate-700'));
+          const icon = L.divIcon({
+            className: '',
+            html: `<div class="w-3.5 h-3.5 rounded-full ${pinClass} border-2 border-white shadow-md"></div>`,
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+          });
+          L.marker(stn.coords, { icon }).addTo(this.layersGroup).bindPopup(`
+            <div class="p-1 text-xs">
+              <strong>${stn.name}</strong><br>
+              <span class="text-slate-600">${stn.line || 'MRT'} Line</span>
+            </div>
+          `);
+          allBounds.push(stn.coords);
+        });
+      }
+
+      // 6. Smoothly pan and zoom map to show whole door-to-door path
+      if (allBounds.length > 0) {
+        this.map.fitBounds(allBounds, { padding: [70, 70], maxZoom: 15 });
+      }
+      return;
+    }
+
+    // --- Baseline Corridor Rendering ---
     // 1. Walking legs (dashed grey)
     Object.values(layers.walking_legs).forEach(walk => {
       L.polyline(walk.coords, {

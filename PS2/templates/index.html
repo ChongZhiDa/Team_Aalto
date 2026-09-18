@@ -86,9 +86,11 @@
               id="origin-input" 
               type="text" 
               value="Blk 230 Tampines St 21 (Home)" 
-              placeholder="Enter starting location..." 
+              placeholder="Enter starting location or postal code..." 
+              autocomplete="off"
               class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
             />
+            <div id="origin-suggestions" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-800/80"></div>
           </div>
           <!-- Destination -->
           <div class="relative flex items-center">
@@ -96,9 +98,11 @@
               id="dest-input" 
               type="text" 
               value="One Raffles Place, CBD (Office)" 
-              placeholder="Enter destination..." 
+              placeholder="Enter destination or postal code..." 
+              autocomplete="off"
               class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
             />
+            <div id="dest-suggestions" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-800/80"></div>
           </div>
         </div>
 

@@ -8,6 +8,7 @@ and supports arbitrary station routing via the Singapore MRT graph.
 from typing import Dict, Any, List, Optional
 from .door_to_door import get_walking_legs, compute_walking_summary, calculate_rain_penalty
 from .graph_router import StationGraphRouter, get_transfer_penalty
+from .location_resolver import resolve_location
 
 
 class MultimodalRouter:
@@ -432,4 +433,235 @@ class MultimodalRouter:
                     "step_free": True
                 },
             ]
+        }
+
+    def route_door_to_door(
+        self,
+        origin_query: str,
+        dest_query: str,
+        rain_active: bool = False,
+        disrupted_line: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Full door-to-door routing for any text query (landmarks, addresses,
+        neighbourhoods, MRT station names with or without 'MRT').
+
+        Fuzzy-resolves origin and destination to the nearest MRT station using
+        location_resolver, then computes the graph-based MRT journey with
+        realistic first/last-mile walk legs and rain penalties.
+
+        Args:
+            origin_query: Raw text for origin (e.g. "NUS", "Tampines Mall", "jurong east mrt")
+            dest_query:   Raw text for destination (e.g. "SGH", "Marina Bay Sands")
+            rain_active:  True if rain is active (adds unsheltered walk penalties)
+            disrupted_line: MRT line to avoid (e.g. "EWL")
+
+        Returns:
+            Route dict with resolved locations, legs, timing, and unresolved error info.
+        """
+        all_stations = self.graph_router.get_all_station_names()
+
+        # --- Resolve locations ---
+        origin_resolved = resolve_location(origin_query, all_stations)
+        dest_resolved = resolve_location(dest_query, all_stations)
+
+        errors: List[str] = []
+        if not origin_resolved:
+            errors.append(f"Could not find '{origin_query}'. Try a station name or landmark.")
+        if not dest_resolved:
+            errors.append(f"Could not find '{dest_query}'. Try a station name or landmark.")
+        if errors:
+            return {
+                "id": "door_to_door_error",
+                "error": True,
+                "messages": errors,
+                "origin_query": origin_query,
+                "dest_query": dest_query,
+            }
+
+        origin_station = origin_resolved["station"]
+        dest_station = dest_resolved["station"]
+
+        # Identical station: same-station journey
+        if origin_station.lower() == dest_station.lower():
+            walk_min = origin_resolved["walk_min"] + dest_resolved["walk_min"]
+            return {
+                "id": "door_to_door_same_area",
+                "title": f"{origin_resolved['display']} to {dest_resolved['display']}",
+                "transit_type": "Walk",
+                "origin_resolved": origin_resolved,
+                "dest_resolved": dest_resolved,
+                "total_duration_min": walk_min,
+                "estimated_arrival": "~same area",
+                "status": f"Both locations served by {origin_station} - walking only",
+                "legs": [
+                    {
+                        "mode": "WALK",
+                        "name": f"Walk from {origin_resolved['display']} to {origin_station} MRT",
+                        "duration": f"{origin_resolved['walk_min']} min",
+                        "distance": f"{origin_resolved['walk_m']}m",
+                        "sheltered_percent": 75,
+                    },
+                    {
+                        "mode": "WALK",
+                        "name": f"Walk from {dest_station} MRT to {dest_resolved['display']}",
+                        "duration": f"{dest_resolved['walk_min']} min",
+                        "distance": f"{dest_resolved['walk_m']}m",
+                        "sheltered_percent": 75,
+                    },
+                ],
+                "is_recommended": True,
+                "error": False,
+            }
+
+        # --- Graph routing ---
+        path = self.graph_router.find_path(
+            origin=origin_station,
+            destination=dest_station,
+            disrupted_line=disrupted_line,
+        )
+        if not path:
+            return {
+                "id": "door_to_door_error",
+                "error": True,
+                "messages": [f"No MRT path found from {origin_station} to {dest_station}."],
+                "origin_query": origin_query,
+                "dest_query": dest_query,
+            }
+
+        # --- Rain penalty on first/last mile walks ---
+        rain_origin_add = round(origin_resolved["walk_min"] * 0.4) if rain_active else 0
+        rain_dest_add = round(dest_resolved["walk_min"] * 0.4) if rain_active else 0
+
+        walk_origin_min = origin_resolved["walk_min"] + rain_origin_add
+        walk_dest_min = dest_resolved["walk_min"] + rain_dest_add
+        train_min = int(round(path["total_train_min"]))
+        total_min = walk_origin_min + train_min + walk_dest_min
+
+        arr_hour = 8 + total_min // 60
+        arr_min_val = total_min % 60
+        ampm = "AM" if arr_hour < 12 else "PM"
+        arr_hour_disp = arr_hour if arr_hour <= 12 else arr_hour - 12
+        arrival_str = f"{arr_hour_disp:02d}:{arr_min_val:02d} {ampm}"
+
+        # --- Build legs: First mile from exact house address to transit node ---
+        legs: List[Dict[str, Any]] = []
+
+        if origin_resolved.get("needs_feeder_bus"):
+            # Doorstep is > 600m from MRT: walk to nearby bus stop + feeder bus
+            walk_to_stop_min = 2
+            bus_ride_min = max(3, walk_origin_min - walk_to_stop_min)
+            legs.append({
+                "mode": "WALK",
+                "name": f"Walk from {origin_resolved['display']} to nearest Bus Stop",
+                "duration": f"{walk_to_stop_min} min",
+                "distance": "150m",
+                "sheltered_percent": 60,
+                "rain_delay_min": rain_origin_add,
+            })
+            legs.append({
+                "mode": "BUS",
+                "name": f"Feeder Bus to {origin_station} MRT Interchange",
+                "duration": f"{bus_ride_min} min",
+                "distance": f"{origin_resolved['walk_m'] - 150}m",
+                "sheltered_percent": 100,
+            })
+        else:
+            legs.append({
+                "mode": "WALK",
+                "name": f"Walk from {origin_resolved['display']} to {origin_station} MRT"
+                        + (" (rain - add time)" if rain_origin_add else ""),
+                "duration": f"{walk_origin_min} min",
+                "distance": f"{origin_resolved['walk_m']}m",
+                "sheltered_percent": 70,
+                "rain_delay_min": rain_origin_add,
+            })
+
+        # Train legs (grouped by line with interchange walk legs)
+        if path["segments"]:
+            current_line = path["segments"][0]["line"]
+            start_stn = path["segments"][0]["from_station"]
+            hop_count = 0
+
+            for i, seg in enumerate(path["segments"]):
+                if seg["line"] != current_line:
+                    end_stn = path["segments"][i - 1]["to_station"]
+                    legs.append({
+                        "mode": "TRAIN",
+                        "name": f"{current_line}: {start_stn.title()} to {end_stn.title()}",
+                        "duration": f"{int(round(hop_count * 2.3))} min",
+                        "stops": hop_count,
+                    })
+                    penalty = seg["transfer_penalty_applied"]
+                    legs.append({
+                        "mode": "WALK",
+                        "name": f"Interchange transfer at {end_stn.title()} ({current_line} -> {seg['line']})",
+                        "duration": f"{penalty} min",
+                        "distance": "180m",
+                        "sheltered_percent": 100,
+                    })
+                    current_line = seg["line"]
+                    start_stn = end_stn
+                    hop_count = 1
+                else:
+                    hop_count += 1
+
+            last_stn = path["segments"][-1]["to_station"]
+            legs.append({
+                "mode": "TRAIN",
+                "name": f"{current_line}: {start_stn.title()} to {last_stn.title()}",
+                "duration": f"{int(round(hop_count * 2.3))} min",
+                "stops": hop_count,
+            })
+
+        # --- Last mile leg: From MRT to final destination address ---
+        if dest_resolved.get("needs_feeder_bus"):
+            bus_dest_min = max(3, dest_resolved["walk_min"] - 2)
+            legs.append({
+                "mode": "BUS",
+                "name": f"Feeder Bus from {dest_station} to {dest_resolved['display']}",
+                "duration": f"{bus_dest_min} min",
+                "distance": f"{dest_resolved['walk_m']}m",
+                "sheltered_percent": 100,
+            })
+            legs.append({
+                "mode": "WALK",
+                "name": f"Walk from Bus Stop to {dest_resolved['display']}",
+                "duration": f"2 min",
+                "distance": "140m",
+                "sheltered_percent": 75,
+                "rain_delay_min": rain_dest_add,
+            })
+        else:
+            legs.append({
+                "mode": "WALK",
+                "name": f"Walk from {dest_station} MRT to {dest_resolved['display']}"
+                        + (" (rain - add time)" if rain_dest_add else ""),
+                "duration": f"{walk_dest_min} min",
+                "distance": f"{dest_resolved['walk_m']}m",
+                "sheltered_percent": 75,
+                "rain_delay_min": rain_dest_add,
+            })
+
+        lines_str = " -> ".join(path["lines"])
+        return {
+            "id": "door_to_door",
+            "title": f"{origin_resolved['display']} to {dest_resolved['display']}",
+            "transit_type": "Train (MRT)" if path["lines"] else "Walk",
+            "line": path["lines"][0] if path["lines"] else "MRT",
+            "lines_used": path["lines"],
+            "total_duration_min": total_min,
+            "estimated_arrival": arrival_str,
+            "delay_minutes": 0,
+            "rain_active": rain_active,
+            "status": f"{path['hops']} stops, {path['transfers']} transfer(s) via {lines_str}",
+            "origin_resolved": origin_resolved,
+            "dest_resolved": dest_resolved,
+            "crowd_level": "m",
+            "disrupted_stations": [],
+            "is_recommended": True,
+            "sheltered_percent": 80,
+            "error": False,
+            "legs": legs,
+            "path_segments": path.get("segments", []),
         }
