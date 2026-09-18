@@ -15,10 +15,26 @@ from src.engine import CommuterEngine, RACHEL_PROFILE
 from src.scenarios import list_scenarios, SCENARIO_NORMAL
 from src.canonical_lines import LINE_COLORS
 from src.routing.multimodal_router import MultimodalRouter
+from src.routing.location_resolver import suggest_locations
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 engine = CommuterEngine()
 _router = MultimodalRouter()
+
+
+@app.route("/api/suggest", methods=["GET"])
+def get_suggestions():
+    """
+    Returns autocomplete suggestions as user types an address, postal code,
+    landmark, or station.
+    Query params: q=<text>
+    """
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return jsonify([])
+    stn_names = _router.graph_router.get_all_station_names()
+    suggestions = suggest_locations(q, station_names=stn_names)
+    return jsonify(suggestions)
 
 
 @app.route("/api/route", methods=["GET"])

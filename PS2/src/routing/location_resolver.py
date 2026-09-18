@@ -590,3 +590,79 @@ def resolve_location(query: str, station_names: Optional[List[str]] = None) -> O
             }
 
     return None
+
+
+def suggest_locations(query: str, station_names: Optional[List[str]] = None, limit: int = 6) -> List[Dict[str, Any]]:
+    """
+    Returns autocomplete suggestions as the user types an address, postal code,
+    landmark, or MRT station name.
+
+    Args:
+        query: Partial user input (e.g. '341', 'tam', 'orch', 'orchard')
+        station_names: Optional list of canonical station names
+        limit: Max number of suggestions (default: 6)
+
+    Returns:
+        List of dicts: [{"display": "...", "station": "...", "type": "postal|landmark|station", "value": "..."}]
+    """
+    if not query or not query.strip():
+        return []
+
+    q_strip = query.strip()
+    suggestions: List[Dict[str, Any]] = []
+    seen_displays = set()
+
+    def add_sug(display: str, station: str, match_type: str, value: str):
+        if display not in seen_displays and len(suggestions) < limit:
+            seen_displays.add(display)
+            suggestions.append({
+                "display": display,
+                "station": station,
+                "type": match_type,
+                "value": value
+            })
+
+    # 1. Postal code suggestions
+    clean_digits = re.sub(r"^[sS]", "", q_strip)
+    if clean_digits.isdigit() and len(clean_digits) >= 2:
+        sector_prefix = clean_digits[:2]
+        for sec, data in _POSTAL_SECTORS.items():
+            if sec.startswith(sector_prefix) or sector_prefix == sec:
+                add_sug(
+                    display=f"Postal {sec}xxxx — {data['display']}",
+                    station=data["station"],
+                    match_type="postal_code",
+                    value=f"{q_strip} ({data['display']})"
+                )
+
+    # 2. Landmark suggestions (prefix match first, then substring match)
+    norm = _normalize(q_strip)
+    prefix_matches = []
+    substr_matches = []
+
+    for key, data in _LOCATIONS.items():
+        if key.startswith(norm):
+            prefix_matches.append((key, data))
+        elif norm in key:
+            substr_matches.append((key, data))
+
+    for key, data in prefix_matches + substr_matches:
+        add_sug(
+            display=f"{data['display']} (near {data['station']} MRT)",
+            station=data["station"],
+            match_type="landmark",
+            value=data["display"]
+        )
+
+    # 3. MRT Station names suggestions
+    if station_names and len(suggestions) < limit:
+        for stn in station_names:
+            if stn.lower().startswith(norm) or norm in stn.lower():
+                add_sug(
+                    display=f"{stn} MRT Station",
+                    station=stn,
+                    match_type="station",
+                    value=f"{stn} MRT"
+                )
+
+    return suggestions
