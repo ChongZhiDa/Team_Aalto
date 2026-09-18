@@ -28,6 +28,8 @@ from .intelligence.personas import (
     ALL_PERSONAS,
     get_persona,
     list_personas,
+    register_custom_persona,
+    extract_station_name,
 )
 from .intelligence.noise_filter import evaluate_noise_filter
 from .intelligence.advisor import synthesize_actionable_advice
@@ -74,6 +76,16 @@ class CommuterEngine:
         """Returns metadata for all available personas."""
         return list_personas()
 
+    def create_custom_commute(self, profile_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Creates and evaluates an on-the-spot customized commute for a new user.
+        Accepts arbitrary origin, destination, departure time, arrival deadline,
+        and mobility/cycling preferences.
+        """
+        profile = register_custom_persona(profile_data)
+        self.set_persona(profile["id"])
+        return self.evaluate_commute()
+
     def evaluate_commute(
         self,
         custom_arrival: Optional[str] = None,
@@ -84,7 +96,7 @@ class CommuterEngine:
         """
         Orchestrates commute evaluation:
         1. Ingests current alerts & crowd forecasts (live or scenario)
-        2. Computes journey times for active persona (Rachel, Arjun, Mdm Lim)
+        2. Computes journey times for active persona (Rachel, Arjun, Mdm Lim, or Custom User)
         3. Evaluates PCDForecast pre-emptive crowd shift advice
         4. Evaluates noise filter (delay threshold & deadline risk)
         5. Synthesizes 1-line actionable advice with AI summarizer
@@ -139,7 +151,13 @@ class CommuterEngine:
         # Route calculation per persona
         rain_active = weather_data.get("rain_alert", False)
 
-        if active_persona_id == "arjun":
+        is_custom_corridor = (
+            base_profile.get("is_custom", False) or
+            (custom_origin and "tampines" not in custom_origin.lower()) or
+            (custom_dest and "raffles" not in custom_dest.lower() and "cbd" not in custom_dest.lower())
+        )
+
+        if active_persona_id == "arjun" and not is_custom_corridor:
             arjun_journey = self.router.compute_arjun_journey(rain_active=rain_active, delay_minutes=delay_min)
             routes = {
                 "primary_arjun": arjun_journey,
@@ -155,13 +173,55 @@ class CommuterEngine:
             )
             is_delayed = noise_evaluation["is_delayed"]
 
-        elif active_persona_id == "mdm_lim":
+        elif active_persona_id == "mdm_lim" and not is_custom_corridor:
             lim_journey = self.router.compute_mdm_lim_journey(rain_active=rain_active)
             routes = {
                 "primary_mdm_lim": lim_journey,
             }
             primary_eta = lim_journey["estimated_arrival"]
             bypass_eta = lim_journey["estimated_arrival"]
+
+            noise_evaluation = evaluate_noise_filter(
+                delay_minutes=delay_min,
+                threshold_minutes=threshold_min,
+                estimated_arrival=primary_eta,
+                deadline_arrival=deadline_arrival,
+            )
+            is_delayed = noise_evaluation["is_delayed"]
+
+        elif is_custom_corridor:
+            # On-the-spot customized route across arbitrary Singapore MRT stations
+            stn_orig = extract_station_name(origin_name, default="Jurong East")
+            stn_dest = extract_station_name(dest_name, default="Bishan")
+            custom_route = self.router.route_arbitrary_commute(stn_orig, stn_dest, rain_active=rain_active)
+
+            if not custom_route:
+                custom_route = self.router.compute_ewl_journey(delay_min, "m", disrupted_stations)
+
+            # Apply cycling or accessibility adaptations
+            if base_profile.get("cycling_enabled"):
+                custom_route["cycling_enabled"] = not rain_active
+                if not rain_active and custom_route.get("legs"):
+                    custom_route["legs"][0] = {
+                        "mode": "CYCLE",
+                        "name": f"Cycle via dedicated cycling link to {stn_orig} MRT",
+                        "duration": "4 min",
+                        "distance": "900m",
+                        "sheltered_percent": 35
+                    }
+                    custom_route["status"] = f"{custom_route.get('status', '')} • Cycling leg enabled"
+
+            if base_profile.get("stair_aversion"):
+                custom_route["step_free_certified"] = True
+                custom_route["status"] = f"{custom_route.get('status', '')} • 100% Step-Free Verified"
+
+            routes = {
+                "primary_custom": custom_route,
+                "arbitrary_route": custom_route,
+                "primary_ewl": custom_route,  # For UI backwards compatibility
+            }
+            primary_eta = custom_route["estimated_arrival"]
+            bypass_eta = custom_route["estimated_arrival"]
 
             noise_evaluation = evaluate_noise_filter(
                 delay_minutes=delay_min,

@@ -90,6 +90,23 @@ def select_persona():
     return jsonify({"status": "error", "message": f"Persona {persona_id} not found"}), 400
 
 
+@app.route("/api/custom-route", methods=["POST"])
+@app.route("/api/persona/custom", methods=["POST"])
+def create_custom_route():
+    """
+    Creates an on-the-spot customized route and persona for a new user.
+    Accepts arbitrary origin, destination, departure time, arrival deadline,
+    delay threshold, and cycling/stair constraints.
+    """
+    data = request.get_json() or {}
+    evaluation = engine.create_custom_commute(data)
+    return jsonify({
+        "status": "success",
+        "persona_id": engine.current_persona_id,
+        "data": evaluation
+    })
+
+
 @app.route("/api/settings", methods=["POST"])
 def update_settings():
     """Allows adjusting arrival timing, origin/destination, delay thresholds, and persona."""

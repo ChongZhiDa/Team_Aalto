@@ -208,8 +208,40 @@ class TestIntelligenceAcceptance(unittest.TestCase):
         self.assertEqual(res["profile"]["name"], "Mdm Lim")
         self.assertTrue(res["routes"]["primary_mdm_lim"]["step_free_certified"])
 
+    def test_tc_cust_01_create_custom_user_route_on_the_spot(self):
+        """TC-CUST-01: Verifies on-the-spot creation of customized route and persona for a new user."""
+        custom_input = {
+            "name": "David",
+            "persona": "East-to-North Inter-corridor Commuter",
+            "origin": "Jurong East",
+            "destination": "Bishan",
+            "departure_time": "08:00 AM",
+            "deadline_arrival": "08:45 AM",
+            "delay_threshold_min": 10,
+            "cycling_enabled": True
+        }
+        res = self.engine.create_custom_commute(custom_input)
+        self.assertEqual(res["profile"]["name"], "David")
+        self.assertTrue(res["profile"]["is_custom"])
+        self.assertIn("primary_custom", res["routes"])
+        custom_route = res["routes"]["primary_custom"]
+        self.assertIn("Jurong East to Bishan", custom_route["title"])
+        self.assertTrue(custom_route["cycling_enabled"])
+        self.assertGreater(len(custom_route["legs"]), 2)
+
+    def test_tc_cust_02_arbitrary_search_input_evaluation(self):
+        """TC-CUST-02: Search bar inputs for arbitrary corridors dynamically route MRT path."""
+        res = self.engine.evaluate_commute(
+            custom_origin="Woodlands",
+            custom_dest="Raffles Place",
+            custom_arrival="08:55 AM"
+        )
+        self.assertIn("primary_custom", res["routes"])
+        self.assertIn("Woodlands to Raffles Place", res["routes"]["primary_custom"]["title"])
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
