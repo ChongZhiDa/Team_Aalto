@@ -216,6 +216,14 @@ export class UIController {
       setTimeout(() => dropdown.classList.add('hidden'), 200);
     });
 
+    input.addEventListener('change', () => {
+      const originInput = document.getElementById('origin-input');
+      const destInput = document.getElementById('dest-input');
+      if (this.handlers.onLocationChange && originInput && destInput) {
+        this.handlers.onLocationChange(originInput.value, destInput.value);
+      }
+    });
+
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         dropdown.classList.add('hidden');
