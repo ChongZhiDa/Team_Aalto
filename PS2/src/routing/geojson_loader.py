@@ -139,3 +139,4 @@ def get_station_metadata(station_name: str) -> Optional[Dict[str, Any]]:
     stations = load_geojson_stations()
     normalized = normalize_station_name(station_name)
     return stations.get(normalized)
+
