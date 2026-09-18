@@ -113,10 +113,12 @@ def update_settings():
         RACHEL_PROFILE["destination"] = str(data["destination"])
 
     arrival_time = data.get("arrival_time") or RACHEL_PROFILE.get("deadline_arrival")
+    origin = data.get("origin") or RACHEL_PROFILE.get("origin")
+    dest = data.get("destination") or RACHEL_PROFILE.get("destination")
     return jsonify({
         "status": "success",
         "profile": RACHEL_PROFILE,
-        "data": engine.evaluate_commute(custom_arrival=arrival_time)
+        "data": engine.evaluate_commute(custom_arrival=arrival_time, custom_origin=origin, custom_dest=dest)
     })
 
 
