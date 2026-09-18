@@ -31,7 +31,13 @@ def get_commute_status():
     arrival_time = request.args.get("arrival_time")
     origin = request.args.get("origin")
     dest = request.args.get("destination")
-    evaluation = engine.evaluate_commute(custom_arrival=arrival_time, custom_origin=origin, custom_dest=dest)
+    persona = request.args.get("persona")
+    evaluation = engine.evaluate_commute(
+        custom_arrival=arrival_time,
+        custom_origin=origin,
+        custom_dest=dest,
+        custom_persona=persona
+    )
     return jsonify(evaluation)
 
 
@@ -60,10 +66,36 @@ def select_scenario():
     return jsonify({"status": "error", "message": f"Scenario {scenario_id} not found"}), 400
 
 
+@app.route("/api/personas", methods=["GET"])
+def get_personas():
+    """Returns list of commuter personas (Rachel, Arjun, Mdm Lim)."""
+    return jsonify({
+        "current": engine.current_persona_id,
+        "personas": engine.list_personas()
+    })
+
+
+@app.route("/api/persona/select", methods=["POST"])
+def select_persona():
+    """Switches active persona (rachel, arjun, mdm_lim)."""
+    data = request.get_json() or {}
+    persona_id = data.get("persona_id", "rachel")
+    success = engine.set_persona(persona_id)
+    if success:
+        return jsonify({
+            "status": "success",
+            "persona_id": persona_id,
+            "data": engine.evaluate_commute()
+        })
+    return jsonify({"status": "error", "message": f"Persona {persona_id} not found"}), 400
+
+
 @app.route("/api/settings", methods=["POST"])
 def update_settings():
-    """Allows adjusting arrival timing, origin/destination, and delay thresholds."""
+    """Allows adjusting arrival timing, origin/destination, delay thresholds, and persona."""
     data = request.get_json() or {}
+    if "persona_id" in data:
+        engine.set_persona(data["persona_id"])
     if "delay_threshold_min" in data:
         RACHEL_PROFILE["delay_threshold_min"] = int(data["delay_threshold_min"])
     if "deadline_arrival" in data:
