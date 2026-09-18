@@ -167,6 +167,68 @@ class TestRoutingModule(unittest.TestCase):
         self.assertIn("Lift out of service", outage["status"])
         self.assertEqual(outage["total_duration_min"], 47)
 
+    # --- Postal Sectors, NTU 639798 & Polyline Attachment Tests ---
+    def test_tc_rot_08_postal_sectors_and_ntu_resolution(self):
+        """TC-ROT-08: Verifies postal sector mappings for Bedok (46-48) and Jurong/Pioneer (60-64), and NTU 639798."""
+        from src.routing.location_resolver import resolve_location, get_pedestrian_path
+
+        # 6-digit postal code for NTU
+        ntu_exact = resolve_location("639798")
+        self.assertIsNotNone(ntu_exact)
+        self.assertEqual(ntu_exact["station"], "Pioneer")
+        self.assertIn("coordinates", ntu_exact)
+
+        # Full address / landmark string with postal code
+        ntu_full = resolve_location("639798 (Nanyang Technological University - NTU)")
+        self.assertIsNotNone(ntu_full)
+        self.assertEqual(ntu_full["station"], "Pioneer")
+
+        # District 16 (Bedok / Upper East Coast)
+        self.assertEqual(resolve_location("460123")["station"], "Bedok")
+        self.assertEqual(resolve_location("470123")["station"], "Bedok")
+        self.assertEqual(resolve_location("480123")["station"], "Bedok Reservoir")
+
+        # District 22 (Jurong / Tuas / Pioneer / Boon Lay)
+        self.assertEqual(resolve_location("600123")["station"], "Jurong East")
+        self.assertEqual(resolve_location("610123")["station"], "Boon Lay")
+        self.assertEqual(resolve_location("620123")["station"], "Joo Koon")
+        self.assertEqual(resolve_location("630123")["station"], "Pioneer")
+        self.assertEqual(resolve_location("640123")["station"], "Boon Lay")
+
+        # Doorstep pedestrian path calculation
+        waypoints, dist_m = get_pedestrian_path([1.3483, 103.6831], [1.3376, 103.6974])
+        self.assertEqual(len(waypoints), 2)
+        self.assertGreater(dist_m, 1000)
+
+    def test_tc_rot_09_custom_and_door_to_door_polyline_attachment(self):
+        """TC-ROT-09: Verifies custom router and door-to-door router attach polyline and station coordinates."""
+        from src.intelligence.custom_router import create_custom_user_route
+
+        # Custom route from NTU postal code to Raffles Place
+        custom_res = create_custom_user_route(
+            origin="639798 (Nanyang Technological University - NTU)",
+            destination="Raffles Place"
+        )
+        self.assertEqual(custom_res["status"], "success")
+        self.assertEqual(custom_res["profile"]["boarding_station"], "Pioneer")
+        self.assertEqual(custom_res["profile"]["alighting_station"], "Raffles Place")
+
+        route = custom_res["route"]
+        self.assertIn("polyline", route)
+        self.assertGreater(len(route["polyline"]), 5, "Polyline must have coordinates along the Western EWL corridor.")
+        self.assertIn("stations", route)
+        self.assertGreaterEqual(len(route["stations"]), 10)
+        self.assertEqual(route["stations"][0]["name"].upper(), "PIONEER")
+
+        # Multimodal door-to-door router attaches polyline coordinates
+        d2d = self.router.route_door_to_door("639798 (Nanyang Technological University - NTU)", "One Raffles Place, CBD")
+        self.assertFalse(d2d.get("error"))
+        self.assertIn("polyline", d2d)
+        self.assertGreater(len(d2d["polyline"]), 5)
+        self.assertIn("stations", d2d)
+        self.assertEqual(d2d["origin_resolved"]["station"], "Pioneer")
+
 
 if __name__ == "__main__":
     unittest.main()
+

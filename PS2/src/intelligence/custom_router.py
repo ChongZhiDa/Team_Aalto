@@ -42,15 +42,24 @@ def _number(value: Any, unit: str) -> float:
 
 
 def _resolve_station(query: str) -> Optional[str]:
+    if not query:
+        return None
     from ..routing.graph_router import MRT_LINES
     stations = [station for line in MRT_LINES.values() for station in line]
+    clean_query = query.strip()
     for station in stations:
-        if query.lower() in (station["code"].lower(), station["name"].lower()):
+        if clean_query.lower() in (station["code"].lower(), station["name"].lower()):
             return station["name"]
-    candidate = extract_station_name(query, default="")
-    for station in stations:
-        if candidate.lower() == station["name"].lower():
-            return station["name"]
+    candidate = extract_station_name(clean_query, default="")
+    if candidate:
+        for station in stations:
+            if candidate.lower() == station["name"].lower():
+                return station["name"]
+    from ..routing.location_resolver import resolve_location
+    all_names = list({s["name"] for s in stations})
+    resolved = resolve_location(clean_query, station_names=all_names)
+    if resolved and resolved.get("station"):
+        return resolved["station"]
     return None
 
 
@@ -124,6 +133,80 @@ def _route_score(route: Dict[str, Any], profile: CommuterProfile, rain_active: b
     stair_cost = 10 if profile.stair_aversion and not route["step_free_certified"] else 0
     return (route["total_duration_min"] + crowd_cost * crowd + stair_cost
             + (20 * profile.rain_shelter_priority * (1 - shelter) if rain_active else 0))
+
+def _enrich_route_map_geometry(
+    route: Dict[str, Any],
+    boarding_station: str,
+    alighting_station: str,
+    raw_origin: str = "",
+    raw_dest: str = "",
+    router_instance: Optional[Any] = None,
+) -> None:
+    """Attaches detailed polyline coordinates and station pins to route for Leaflet map rendering."""
+    from ..routing.graph_router import StationGraphRouter
+    from ..routing.geojson_loader import get_station_metadata
+    from ..routing.location_resolver import resolve_location
+
+    graph = StationGraphRouter()
+    path_info = graph.find_path(boarding_station, alighting_station)
+
+    route_stations: List[Dict[str, Any]] = []
+    route_polyline: List[List[float]] = []
+
+    orig_loc = resolve_location(raw_origin) if raw_origin else None
+    dest_loc = resolve_location(raw_dest) if raw_dest else None
+
+    if path_info and path_info.get("segments"):
+        first_stn = path_info["segments"][0]["from_station"]
+        first_meta = get_station_metadata(first_stn)
+        first_coords = first_meta["coords"] if first_meta else [1.3521, 103.8198]
+        route_stations.append({
+            "name": first_stn.title(),
+            "coords": first_coords,
+            "line": path_info["segments"][0]["line"],
+        })
+        route_polyline.append(first_coords)
+
+        for seg in path_info["segments"]:
+            stn_name = seg["to_station"]
+            meta = get_station_metadata(stn_name)
+            coords = meta["coords"] if meta else [1.3521, 103.8198]
+            route_stations.append({
+                "name": stn_name.title(),
+                "coords": coords,
+                "line": seg["line"],
+            })
+            route_polyline.append(coords)
+    else:
+        b_meta = get_station_metadata(boarding_station)
+        a_meta = get_station_metadata(alighting_station)
+        b_coords = b_meta["coords"] if b_meta else [1.3521, 103.8198]
+        a_coords = a_meta["coords"] if a_meta else [1.3521, 103.8198]
+        route_stations = [
+            {"name": boarding_station.title(), "coords": b_coords, "line": route.get("line", "MRT")},
+            {"name": alighting_station.title(), "coords": a_coords, "line": route.get("line", "MRT")},
+        ]
+        route_polyline = [b_coords, a_coords]
+
+    # Prepend doorstep origin coordinates if resolved and distinct
+    if orig_loc and orig_loc.get("coordinates"):
+        route_polyline.insert(0, orig_loc["coordinates"])
+
+    # Append destination coordinates if resolved and distinct
+    if dest_loc and dest_loc.get("coordinates"):
+        route_polyline.append(dest_loc["coordinates"])
+    elif "raffles" in str(raw_dest).lower() or "cbd" in str(raw_dest).lower():
+        route_polyline.append([1.2840, 103.8515])
+
+    route["polyline"] = route_polyline
+    route["route_polyline"] = route_polyline
+    route["coordinates"] = route_polyline
+    route["stations"] = route_stations
+    route["route_stations"] = route_stations
+    if orig_loc and orig_loc.get("coordinates"):
+        route["origin_coords"] = orig_loc["coordinates"]
+    if dest_loc and dest_loc.get("coordinates"):
+        route["destination_coords"] = dest_loc["coordinates"]
 
 
 def create_custom_user_route(
@@ -218,6 +301,15 @@ def create_custom_user_route(
         raw_notice_text=raw_notice_text, target_arrival=commuter.deadline_arrival,
         persona_id=commuter.id, profile=commuter.to_dict(), route=selected,
         alternatives=feasible[1:], pcd_forecast_advice=crowd_eval.get("advice") if crowd_eval["forecast_detected"] else None)
+    for candidate in feasible:
+        _enrich_route_map_geometry(
+            candidate,
+            boarding_station=commuter.boarding_station,
+            alighting_station=commuter.alighting_station,
+            raw_origin=str(values.get("origin", "")),
+            raw_dest=str(values.get("destination", "")),
+            router_instance=router_instance,
+        )
     profile_dict = commuter.to_dict()
     if commuter.id not in ALL_PERSONAS:
         profile_dict = register_custom_persona(profile_dict)

@@ -323,9 +323,38 @@ async function queryGraphRoute(origin, dest) {
       currentArbitraryRoute = routeData;
       activeRouteId = 'arbitrary_route';
       uiController.renderArbitraryRouteCard(routeData);
+
       if (routeData.polyline && routeData.polyline.length > 0) {
         mapController.renderArbitraryRoute(routeData);
+      } else {
+        mapController.renderCustomRoute(routeData, {
+          origin: routeData.origin_resolved?.station || origQuery,
+          destination: routeData.dest_resolved?.station || destQuery,
+          boarding_station: routeData.origin_resolved?.station,
+          alighting_station: routeData.dest_resolved?.station
+        });
       }
+
+      // Sync proactive alert banner with queried journey (clearing Tampines default)
+      const originDisplay = routeData.origin_resolved?.display || routeData.title || origQuery;
+      const destDisplay = routeData.dest_resolved?.display || destQuery;
+      const totalMin = routeData.total_duration_min || 0;
+      const eta = routeData.estimated_arrival || '--:--';
+      const headlineText = `${originDisplay} → ${destDisplay}`;
+      const detailText = `${routeData.status || 'Direct MRT corridor'} • ETA: ${eta} (${totalMin} mins)`;
+
+      const alertData = {
+        decision: {
+          headline: headlineText,
+          one_line_advice: detailText,
+          urgency: (routeData.delay_minutes && routeData.delay_minutes > 0) ? 'CRITICAL' : 'CALM',
+          threshold_minutes: 15,
+          is_delayed: Boolean(routeData.delay_minutes && routeData.delay_minutes > 0)
+        },
+        weather: currentData?.weather,
+        pcd_forecast: { advice: null }
+      };
+      uiController.updateAlertBanner(alertData);
     }
   } catch (err) {
     console.error('Failed to query graph route:', err);

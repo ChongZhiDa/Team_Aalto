@@ -605,6 +605,42 @@ class MultimodalRouter:
         })
 
         lines_str = " -> ".join(path["lines"])
+
+        from .geojson_loader import get_station_metadata
+        from .coordinates import get_station_by_name
+
+        route_stations: List[Dict[str, Any]] = []
+        route_polyline: List[List[float]] = []
+
+        if path["segments"]:
+            first_stn = path["segments"][0]["from_station"]
+            first_meta = get_station_metadata(first_stn) or get_station_by_name(first_stn)
+            first_coords = first_meta["coords"] if first_meta else [1.3521, 103.8198]
+            route_stations.append({
+                "name": first_stn.title(),
+                "coords": first_coords,
+                "line": path["segments"][0]["line"],
+            })
+            route_polyline.append(first_coords)
+
+            for seg in path["segments"]:
+                stn_name = seg["to_station"]
+                meta = get_station_metadata(stn_name) or get_station_by_name(stn_name)
+                coords = meta["coords"] if meta else [1.3521, 103.8198]
+                route_stations.append({
+                    "name": stn_name.title(),
+                    "coords": coords,
+                    "line": seg["line"],
+                })
+                route_polyline.append(coords)
+
+        if origin_resolved.get("coordinates"):
+            route_polyline.insert(0, origin_resolved["coordinates"])
+        if dest_resolved.get("coordinates"):
+            route_polyline.append(dest_resolved["coordinates"])
+        elif "raffles" in dest_resolved.get("display", "").lower() or "cbd" in dest_resolved.get("display", "").lower():
+            route_polyline.append([1.2840, 103.8515])
+
         return {
             "id": "door_to_door",
             "title": f"{origin_resolved['display']} to {dest_resolved['display']}",
@@ -624,4 +660,9 @@ class MultimodalRouter:
             "sheltered_percent": 80,
             "error": False,
             "legs": legs,
+            "polyline": route_polyline,
+            "route_polyline": route_polyline,
+            "coordinates": route_polyline,
+            "stations": route_stations,
+            "route_stations": route_stations,
         }

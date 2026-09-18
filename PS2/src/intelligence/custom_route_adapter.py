@@ -211,3 +211,4 @@ def api_custom_user_route():
 def register_custom_route_adapter(app):
     """Utility to register the custom route blueprint onto the main Flask app."""
     app.register_blueprint(custom_route_bp)
+

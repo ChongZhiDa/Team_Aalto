@@ -81,8 +81,9 @@ _LOCATIONS: Dict[str, Dict[str, Any]] = {
     # === Universities & Polytechnics ===
     "nus": {"station": "Kent Ridge", "walk_min": 10, "walk_m": 800, "display": "NUS (National University of Singapore)"},
     "national university of singapore": {"station": "Kent Ridge", "walk_min": 10, "walk_m": 800, "display": "NUS"},
-    "ntu": {"station": "Boon Lay", "walk_min": 20, "walk_m": 1600, "display": "NTU (Nanyang Technological University)"},
-    "nanyang technological university": {"station": "Boon Lay", "walk_min": 20, "walk_m": 1600, "display": "NTU"},
+    "639798": {"station": "Pioneer", "walk_min": 15, "walk_m": 1200, "display": "NTU (Nanyang Technological University)", "coordinates": [1.3483, 103.6831]},
+    "ntu": {"station": "Pioneer", "walk_min": 15, "walk_m": 1200, "display": "NTU (Nanyang Technological University)", "coordinates": [1.3483, 103.6831]},
+    "nanyang technological university": {"station": "Pioneer", "walk_min": 15, "walk_m": 1200, "display": "NTU (Nanyang Technological University)", "coordinates": [1.3483, 103.6831]},
     "smu": {"station": "Bras Basah", "walk_min": 5, "walk_m": 400, "display": "SMU (Singapore Management University)"},
     "singapore management university": {"station": "Bras Basah", "walk_min": 5, "walk_m": 400, "display": "SMU"},
     "sit": {"station": "Tampines", "walk_min": 15, "walk_m": 1200, "display": "SIT (Singapore Institute of Technology)"},
@@ -364,9 +365,9 @@ _POSTAL_SECTORS: Dict[str, Dict[str, Any]] = {
     "43": {"station": "Kovan",          "walk_min": 8,  "walk_m": 640,  "display": "Kovan area"},
     "44": {"station": "Kovan",          "walk_min": 8,  "walk_m": 640,  "display": "Kovan area"},
     "45": {"station": "Woodlands",      "walk_min": 8,  "walk_m": 640,  "display": "Woodlands area"},
-    "46": {"station": "Boon Lay",       "walk_min": 10, "walk_m": 800,  "display": "Jurong West area"},
-    "47": {"station": "Boon Lay",       "walk_min": 10, "walk_m": 800,  "display": "Jurong West area"},
-    "48": {"station": "Joo Koon",       "walk_min": 10, "walk_m": 800,  "display": "Tuas area"},
+    "46": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok South area"},
+    "47": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok North area"},
+    "48": {"station": "Bedok Reservoir","walk_min": 8,  "walk_m": 640,  "display": "Bedok Reservoir area"},
     "49": {"station": "Clementi",       "walk_min": 8,  "walk_m": 640,  "display": "Clementi area"},
     "50": {"station": "Buona Vista",    "walk_min": 8,  "walk_m": 640,  "display": "Buona Vista area"},
     "51": {"station": "Dover",          "walk_min": 8,  "walk_m": 640,  "display": "Dover area"},
@@ -378,11 +379,11 @@ _POSTAL_SECTORS: Dict[str, Dict[str, Any]] = {
     "57": {"station": "Commonwealth",   "walk_min": 8,  "walk_m": 640,  "display": "Commonwealth area"},
     "58": {"station": "Redhill",        "walk_min": 8,  "walk_m": 640,  "display": "Redhill / Bukit Merah area"},
     "59": {"station": "Tiong Bahru",    "walk_min": 8,  "walk_m": 640,  "display": "Tiong Bahru area"},
-    "60": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
-    "61": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
-    "62": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
-    "63": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
-    "64": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
+    "60": {"station": "Jurong East",    "walk_min": 8,  "walk_m": 640,  "display": "Jurong East area"},
+    "61": {"station": "Boon Lay",       "walk_min": 10, "walk_m": 800,  "display": "Jurong West area"},
+    "62": {"station": "Joo Koon",       "walk_min": 10, "walk_m": 800,  "display": "Tuas / Pioneer area"},
+    "63": {"station": "Pioneer",        "walk_min": 12, "walk_m": 960,  "display": "NTU / Pioneer area"},
+    "64": {"station": "Boon Lay",       "walk_min": 8,  "walk_m": 640,  "display": "Boon Lay area"},
     "65": {"station": "Tampines",       "walk_min": 8,  "walk_m": 640,  "display": "Tampines area"},
     "66": {"station": "Tampines",       "walk_min": 8,  "walk_m": 640,  "display": "Tampines area"},
     "67": {"station": "Tampines",       "walk_min": 8,  "walk_m": 640,  "display": "Tampines area"},
@@ -470,6 +471,14 @@ def resolve_location(query: str, station_names: Optional[List[str]] = None) -> O
     # --- Pass 0: Postal code detection ---
     postal = _extract_postal_code(query)
     if postal:
+        if postal in _LOCATIONS:
+            result = _LOCATIONS[postal].copy()
+            result.update({
+                "match_type": "exact_postal",
+                "postal_code": postal,
+                "query": query,
+            })
+            return result
         sector = postal[:2]
         if sector in _POSTAL_SECTORS:
             result = _POSTAL_SECTORS[sector].copy()
@@ -538,3 +547,20 @@ def resolve_location(query: str, station_names: Optional[List[str]] = None) -> O
             }
 
     return None
+
+
+def get_pedestrian_path(start_coords: Optional[List[float]], end_coords: Optional[List[float]]) -> Tuple[List[List[float]], float]:
+    """
+    Computes a doorstep pedestrian walking path between two GPS coordinates.
+    Returns (waypoints, distance_m).
+    """
+    if not start_coords or not end_coords:
+        return ([], 0.0)
+    lat1, lon1 = start_coords
+    lat2, lon2 = end_coords
+    dy = (lat2 - lat1) * 111000.0
+    dx = (lon2 - lon1) * 110970.0
+    dist_m = round((dx * dx + dy * dy) ** 0.5, 1)
+    waypoints = [list(start_coords), list(end_coords)]
+    return (waypoints, dist_m)
+
