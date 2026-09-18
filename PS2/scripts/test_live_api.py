@@ -48,13 +48,33 @@ def main():
     print(f"  -> Affected Segments Count: {len(alerts.get('AffectedSegments', []))}")
     print("  [OK] DataMall client initialized!")
 
-    # 3. Test OneMap Geocoding
-    print("\n[3/3] Testing OneMap Geocoding...")
+    # 3. Test OneMap Geocoding & Routing
+    print("\n[3/3] Testing OneMap Geocoding & Routing...")
     om = OneMapClient()
-    search = om.search_address("Tampines MRT")
-    results_count = len(search.get("results", []))
-    print(f"  -> Search results for 'Tampines MRT': {results_count} found")
-    print("  [OK] OneMap client initialized!")
+    token = os.getenv("ONEMAP_TOKEN", "")
+    if token:
+        print(f"  Found ONEMAP_TOKEN ({token[:6]}...)")
+    else:
+        print("  Notice: ONEMAP_TOKEN not set (public geocoding + fallback routing active)")
+
+    # Test address autocomplete
+    results = om.autocomplete("Tampines MRT", limit=2)
+    print(f"  -> Autocomplete 'Tampines MRT': {len(results)} found")
+    if results:
+        top = results[0]
+        print(f"     Label: {top['label']}")
+        print(f"     Coords: {top['coords']}")
+
+    # Test postal code lookup
+    postal_res = om.search_postal_code("529538")
+    if postal_res:
+        print(f"  -> Postal 529538 resolved to: {postal_res['address']}")
+
+    # Test walking route estimation / live route
+    route = om.get_route([1.3533, 103.9452], [1.2844, 103.8510], route_type="walk")
+    print(f"  -> Route calculation status: {route.get('status')} (Source: {route.get('source')})")
+    print("  [OK] OneMap client operational!")
+
 
     print("\n========================================")
     print("All API client modules are operational!")
