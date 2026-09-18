@@ -9,6 +9,12 @@ import sys
 # Ensure PS2 root is on sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env")))
+except ImportError:
+    pass
+
 from src.api.weather_client import WeatherClient
 from src.api.datamall_client import DataMallClient
 from src.api.onemap_client import OneMapClient

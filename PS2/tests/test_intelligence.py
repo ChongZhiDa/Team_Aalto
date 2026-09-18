@@ -39,6 +39,27 @@ class TestIntelligenceModule(unittest.TestCase):
         self.assertEqual(eval_result["notification_action"], "PROACTIVE_PUSH_FIRED")
         self.assertTrue(eval_result["is_delayed"])
 
+    def test_minute_level_deadline_precision(self):
+        # 1 minute past target triggers alert even if delay is minor
+        eval_late = evaluate_noise_filter(
+            delay_minutes=3,
+            threshold_minutes=15,
+            estimated_arrival="08:25 AM",
+            deadline_arrival="08:24 AM"
+        )
+        self.assertTrue(eval_late["is_delayed"])
+        self.assertEqual(eval_late["urgency"], UrgencyLevel.CRITICAL.value)
+
+        # Arriving exactly on or before minute target stays calm (under delay threshold)
+        eval_ontime = evaluate_noise_filter(
+            delay_minutes=3,
+            threshold_minutes=15,
+            estimated_arrival="08:24 AM",
+            deadline_arrival="08:24"  # 24h format supported
+        )
+        self.assertFalse(eval_ontime["is_delayed"])
+        self.assertEqual(eval_ontime["urgency"], UrgencyLevel.CALM.value)
+
     def test_actionable_advice_synthesis(self):
         advice = synthesize_actionable_advice(
             is_delayed=True,

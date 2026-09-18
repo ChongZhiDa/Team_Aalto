@@ -120,7 +120,8 @@ class CommuterEngine:
             delay_minutes=delay_min,
             ewl_arrival=primary_ewl["estimated_arrival"],
             dtl_arrival=bypass_dtl["estimated_arrival"],
-            raw_notice_text=notice_text
+            raw_notice_text=notice_text,
+            target_arrival=deadline_arrival
         )
 
         active_profile = {

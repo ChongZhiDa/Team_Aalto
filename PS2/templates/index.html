@@ -111,17 +111,28 @@
       <!-- Timing & Preferences Bar (Google Maps Style Options) -->
       <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-300">
         
-        <!-- Arrival Timing Picker -->
+        <!-- Arrival Timing Picker (Editable down to the minute) -->
         <div class="flex items-center gap-1.5">
           <i class="fa-regular fa-clock text-blue-400"></i>
           <span class="text-[11px] text-slate-400 font-medium">Arrive by:</span>
-          <select id="select-arrival-time" class="bg-slate-800 border border-slate-700 text-white font-semibold rounded-md px-2 py-0.5 text-xs focus:outline-none focus:border-blue-500">
-            <option value="08:30 AM">08:30 AM</option>
-            <option value="08:45 AM" selected>08:45 AM (Desk Target)</option>
-            <option value="09:00 AM">09:00 AM (Meeting)</option>
-            <option value="09:15 AM">09:15 AM</option>
-            <option value="09:30 AM">09:30 AM</option>
-          </select>
+          <div class="flex items-center gap-1">
+            <input 
+              type="time" 
+              id="input-arrival-time" 
+              value="08:45" 
+              step="60"
+              title="Target arrival time (editable down to the minute)"
+              class="bg-slate-800 border border-slate-700 text-white font-semibold rounded-md px-2 py-0.5 text-xs focus:outline-none focus:border-blue-500 hover:border-slate-600 transition cursor-pointer [color-scheme:dark]"
+            />
+            <div class="flex items-center gap-0.5">
+              <button id="btn-minute-dec" type="button" title="Decrease by 1 minute" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white text-[9px] transition">
+                <i class="fa-solid fa-minus"></i>
+              </button>
+              <button id="btn-minute-inc" type="button" title="Increase by 1 minute" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white text-[9px] transition">
+                <i class="fa-solid fa-plus"></i>
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Weather Status Chip -->

@@ -4,6 +4,12 @@ Main Flask server providing REST API and mobile-optimized frontend.
 """
 
 import os
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from flask import Flask, render_template, jsonify, request
 from src.engine import CommuterEngine, RACHEL_PROFILE
 from src.scenarios import list_scenarios, SCENARIO_NORMAL

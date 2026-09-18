@@ -13,20 +13,32 @@ class UrgencyLevel(str, Enum):
     CRITICAL = "CRITICAL"
 
 
+def _parse_to_minutes(time_str: str) -> int:
+    """Safely converts time string (e.g. '08:45 AM', '08:45', '14:30') to minutes from midnight."""
+    s = str(time_str).strip()
+    is_pm = "PM" in s.upper()
+    is_am = "AM" in s.upper()
+    clean = s.upper().replace("AM", "").replace("PM", "").strip()
+    parts = clean.split(":")
+    h = int(parts[0]) if len(parts) > 0 and parts[0].isdigit() else 8
+    m = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 45
+    if is_pm and h < 12:
+        h += 12
+    elif is_am and h == 12:
+        h = 0
+    return h * 60 + m
+
+
 def evaluate_noise_filter(delay_minutes: int, threshold_minutes: int, estimated_arrival: str, deadline_arrival: str) -> Dict[str, Any]:
     """
     Evaluates whether the current delay crosses the commuter's pain threshold.
     - If delay < threshold AND arrival <= deadline: noise, keep quiet.
     - If delay >= threshold OR arrival > deadline: trigger proactive alert.
     """
-    # Parse arrival hour and minute e.g. "08:47 AM"
-    parts = estimated_arrival.replace(" AM", "").split(":")
-    arr_h, arr_m = int(parts[0]), int(parts[1])
+    arr_minutes = _parse_to_minutes(estimated_arrival)
+    dead_minutes = _parse_to_minutes(deadline_arrival)
 
-    d_parts = deadline_arrival.replace(" AM", "").split(":")
-    dead_h, dead_m = int(d_parts[0]), int(d_parts[1])
-
-    is_late_for_deadline = (arr_h > dead_h) or (arr_h == dead_h and arr_m > dead_m)
+    is_late_for_deadline = arr_minutes > dead_minutes
     exceeds_threshold = delay_minutes >= threshold_minutes
 
     if exceeds_threshold or is_late_for_deadline:

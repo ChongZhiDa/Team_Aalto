@@ -28,13 +28,42 @@ export class UIController {
       if (this.handlers.onSelectRoute) this.handlers.onSelectRoute('bypass_bus10e');
     });
 
-    // Arrival timing dropdown
-    document.getElementById('select-arrival-time')?.addEventListener('change', (e) => {
-      const selectedTime = e.target.value;
+    // Arrival timing input (editable down to the minute)
+    const arrivalInput = document.getElementById('input-arrival-time');
+
+    const triggerArrivalChange = (val24) => {
+      if (!val24) return;
+      const formatted12h = this.formatTime12h(val24);
       const deskLabel = document.getElementById('target-desk-label');
-      if (deskLabel) deskLabel.textContent = selectedTime;
-      if (this.handlers.onArrivalChange) this.handlers.onArrivalChange(selectedTime);
+      if (deskLabel) deskLabel.textContent = formatted12h;
+      if (this.handlers.onArrivalChange) this.handlers.onArrivalChange(formatted12h);
+    };
+
+    arrivalInput?.addEventListener('change', (e) => {
+      triggerArrivalChange(e.target.value);
     });
+
+    arrivalInput?.addEventListener('input', (e) => {
+      if (e.target.value && e.target.value.length === 5) {
+        triggerArrivalChange(e.target.value);
+      }
+    });
+
+    const adjustMinutes = (deltaMinutes) => {
+      if (!arrivalInput) return;
+      const val = arrivalInput.value || '08:45';
+      const parts = val.split(':');
+      if (parts.length < 2) return;
+      let totalMins = (parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10) + deltaMinutes + 1440) % 1440;
+      const newH = String(Math.floor(totalMins / 60)).padStart(2, '0');
+      const newM = String(totalMins % 60).padStart(2, '0');
+      const newVal = `${newH}:${newM}`;
+      arrivalInput.value = newVal;
+      triggerArrivalChange(newVal);
+    };
+
+    document.getElementById('btn-minute-dec')?.addEventListener('click', () => adjustMinutes(-1));
+    document.getElementById('btn-minute-inc')?.addEventListener('click', () => adjustMinutes(1));
 
     // Swap locations button
     document.getElementById('btn-swap-locations')?.addEventListener('click', () => {
@@ -230,4 +259,19 @@ export class UIController {
       badge.classList.add('hidden');
     }
   }
+
+  formatTime12h(timeStr) {
+    if (!timeStr) return '08:45 AM';
+    if (timeStr.includes('AM') || timeStr.includes('PM')) return timeStr;
+    const parts = timeStr.split(':');
+    if (parts.length < 2) return timeStr;
+    let h = parseInt(parts[0], 10);
+    const m = parts[1];
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    const hStr = String(h).padStart(2, '0');
+    return `${hStr}:${m} ${ampm}`;
+  }
 }
+
