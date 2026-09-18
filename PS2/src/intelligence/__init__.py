@@ -12,12 +12,19 @@ from .personas import (
     ARJUN_PROFILE,
     MDM_LIM_PROFILE,
     ALL_PERSONAS,
+    CommuterProfile,
+    register_custom_persona,
+    update_persona,
+    delete_custom_persona,
+    save_personas,
+    load_personas,
     get_persona,
     list_personas,
     set_active_persona,
     get_active_persona,
 )
 from .noise_filter import evaluate_noise_filter, UrgencyLevel
+from .custom_router import create_custom_user_route
 from .advisor import (
     synthesize_actionable_advice,
     build_advisory_llm_prompt,
@@ -40,6 +47,13 @@ __all__ = [
     "ARJUN_PROFILE",
     "MDM_LIM_PROFILE",
     "ALL_PERSONAS",
+    "CommuterProfile",
+    "register_custom_persona",
+    "update_persona",
+    "delete_custom_persona",
+    "save_personas",
+    "load_personas",
+    "create_custom_user_route",
     "get_persona",
     "list_personas",
     "set_active_persona",
