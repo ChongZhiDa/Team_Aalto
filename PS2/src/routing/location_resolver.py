@@ -315,94 +315,146 @@ _ALL_KEYS: List[str] = list(_LOCATIONS.keys())
 
 # ---------------------------------------------------------------------------
 # Singapore Postal Sector → Nearest MRT Station
-# Sectors are the first 2 digits of a 6-digit Singapore postal code.
-# Covers all ~80 active sectors. Walk estimates in minutes.
+# Source: Singapore postal districts (postal-codes.net/singapore)
+# First 2 digits of 6-digit code = sector. 28 districts, 81 sectors total.
 # ---------------------------------------------------------------------------
 _POSTAL_SECTORS: Dict[str, Dict[str, Any]] = {
-    "01": {"station": "Raffles Place",  "walk_min": 8,  "walk_m": 640,  "display": "Raffles Place / Cecil / Marina area"},
-    "02": {"station": "Tanjong Pagar",  "walk_min": 8,  "walk_m": 640,  "display": "Anson / Tanjong Pagar area"},
-    "03": {"station": "Queenstown",     "walk_min": 10, "walk_m": 800,  "display": "Queenstown / Tiong Bahru area"},
-    "04": {"station": "Telok Blangah",  "walk_min": 8,  "walk_m": 640,  "display": "Telok Blangah / HarbourFront area"},
-    "05": {"station": "Pasir Panjang",  "walk_min": 10, "walk_m": 800,  "display": "Pasir Panjang / Clementi area"},
-    "06": {"station": "City Hall",      "walk_min": 8,  "walk_m": 640,  "display": "High Street / Beach Road area"},
-    "07": {"station": "Bugis",          "walk_min": 8,  "walk_m": 640,  "display": "Middle Road / Golden Mile area"},
-    "08": {"station": "Little India",   "walk_min": 8,  "walk_m": 640,  "display": "Little India / Farrer Park area"},
-    "09": {"station": "Orchard",        "walk_min": 8,  "walk_m": 640,  "display": "Orchard / Cairnhill / River Valley area"},
-    "10": {"station": "Stevens",        "walk_min": 10, "walk_m": 800,  "display": "Ardmore / Bukit Timah / Holland area"},
-    "11": {"station": "Novena",         "walk_min": 8,  "walk_m": 640,  "display": "Watten Estate / Novena / Thomson area"},
-    "12": {"station": "Toa Payoh",      "walk_min": 10, "walk_m": 800,  "display": "Balestier / Toa Payoh area"},
-    "13": {"station": "Braddell",       "walk_min": 10, "walk_m": 800,  "display": "MacPherson / Braddell area"},
-    "14": {"station": "Aljunied",       "walk_min": 8,  "walk_m": 640,  "display": "Geylang / Eunos area"},
-    "15": {"station": "Kembangan",      "walk_min": 10, "walk_m": 800,  "display": "Katong / Joo Chiat / Amber Road area"},
-    "16": {"station": "Bedok",          "walk_min": 10, "walk_m": 800,  "display": "Bedok / Upper East Coast area"},
-    "17": {"station": "Expo",           "walk_min": 15, "walk_m": 1200, "display": "Loyang / Changi area"},
-    "18": {"station": "Tampines",       "walk_min": 8,  "walk_m": 640,  "display": "Tampines area"},
-    "19": {"station": "Serangoon",      "walk_min": 10, "walk_m": 800,  "display": "Serangoon Garden / Hougang area"},
-    "20": {"station": "Ang Mo Kio",     "walk_min": 8,  "walk_m": 640,  "display": "Bishan / Ang Mo Kio area"},
-    "21": {"station": "Clementi",       "walk_min": 10, "walk_m": 800,  "display": "Upper Bukit Timah / Clementi Park area"},
-    "22": {"station": "Jurong East",    "walk_min": 10, "walk_m": 800,  "display": "Jurong area"},
-    "23": {"station": "Hillview",       "walk_min": 8,  "walk_m": 640,  "display": "Hillview / Bukit Panjang area"},
-    "24": {"station": "Kranji",         "walk_min": 15, "walk_m": 1200, "display": "Lim Chu Kang area"},
-    "25": {"station": "Kranji",         "walk_min": 12, "walk_m": 960,  "display": "Kranji / Woodgrove area"},
-    "26": {"station": "Upper Thomson",  "walk_min": 10, "walk_m": 800,  "display": "Upper Thomson / Springleaf area"},
-    "27": {"station": "Yishun",         "walk_min": 8,  "walk_m": 640,  "display": "Yishun / Sembawang area"},
-    "28": {"station": "Khatib",         "walk_min": 15, "walk_m": 1200, "display": "Seletar area"},
-    "29": {"station": "Sengkang",       "walk_min": 8,  "walk_m": 640,  "display": "Sengkang area"},
-    "30": {"station": "Sengkang",       "walk_min": 8,  "walk_m": 640,  "display": "Sengkang area"},
-    "31": {"station": "Buangkok",       "walk_min": 8,  "walk_m": 640,  "display": "Buangkok area"},
-    "32": {"station": "Punggol",        "walk_min": 8,  "walk_m": 640,  "display": "Punggol area"},
-    "33": {"station": "Woodlands",      "walk_min": 8,  "walk_m": 640,  "display": "Woodlands area"},
-    "34": {"station": "Woodleigh",      "walk_min": 10, "walk_m": 800,  "display": "Bidadari / Woodleigh / Potong Pasir area"},
-    "35": {"station": "Toa Payoh",      "walk_min": 10, "walk_m": 800,  "display": "Toa Payoh / Braddell area"},
-    "36": {"station": "Choa Chu Kang",  "walk_min": 8,  "walk_m": 640,  "display": "Choa Chu Kang area"},
-    "37": {"station": "Bukit Panjang",  "walk_min": 8,  "walk_m": 640,  "display": "Bukit Panjang area"},
-    "38": {"station": "Bukit Panjang",  "walk_min": 8,  "walk_m": 640,  "display": "Bukit Panjang area"},
-    "39": {"station": "Hougang",        "walk_min": 8,  "walk_m": 640,  "display": "Hougang area"},
-    "40": {"station": "Toa Payoh",      "walk_min": 8,  "walk_m": 640,  "display": "Toa Payoh area"},
-    "41": {"station": "Bishan",         "walk_min": 8,  "walk_m": 640,  "display": "Bishan area"},
-    "42": {"station": "Serangoon",      "walk_min": 8,  "walk_m": 640,  "display": "Serangoon area"},
-    "43": {"station": "Kovan",          "walk_min": 8,  "walk_m": 640,  "display": "Kovan area"},
-    "44": {"station": "Kovan",          "walk_min": 8,  "walk_m": 640,  "display": "Kovan area"},
-    "45": {"station": "Woodlands",      "walk_min": 8,  "walk_m": 640,  "display": "Woodlands area"},
-    "46": {"station": "Boon Lay",       "walk_min": 10, "walk_m": 800,  "display": "Jurong West area"},
-    "47": {"station": "Boon Lay",       "walk_min": 10, "walk_m": 800,  "display": "Jurong West area"},
-    "48": {"station": "Joo Koon",       "walk_min": 10, "walk_m": 800,  "display": "Tuas area"},
-    "49": {"station": "Clementi",       "walk_min": 8,  "walk_m": 640,  "display": "Clementi area"},
-    "50": {"station": "Buona Vista",    "walk_min": 8,  "walk_m": 640,  "display": "Buona Vista area"},
-    "51": {"station": "Dover",          "walk_min": 8,  "walk_m": 640,  "display": "Dover area"},
-    "52": {"station": "Dover",          "walk_min": 8,  "walk_m": 640,  "display": "Dover area"},
-    "53": {"station": "Queenstown",     "walk_min": 8,  "walk_m": 640,  "display": "Queenstown area"},
-    "54": {"station": "Queenstown",     "walk_min": 8,  "walk_m": 640,  "display": "Queenstown area"},
-    "55": {"station": "Queenstown",     "walk_min": 8,  "walk_m": 640,  "display": "Queenstown area"},
-    "56": {"station": "Commonwealth",   "walk_min": 8,  "walk_m": 640,  "display": "Commonwealth area"},
-    "57": {"station": "Commonwealth",   "walk_min": 8,  "walk_m": 640,  "display": "Commonwealth area"},
-    "58": {"station": "Redhill",        "walk_min": 8,  "walk_m": 640,  "display": "Redhill / Bukit Merah area"},
-    "59": {"station": "Tiong Bahru",    "walk_min": 8,  "walk_m": 640,  "display": "Tiong Bahru area"},
-    "60": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
-    "61": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
-    "62": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
-    "63": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
-    "64": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
-    "65": {"station": "Tampines",       "walk_min": 8,  "walk_m": 640,  "display": "Tampines area"},
-    "66": {"station": "Tampines",       "walk_min": 8,  "walk_m": 640,  "display": "Tampines area"},
-    "67": {"station": "Tampines",       "walk_min": 8,  "walk_m": 640,  "display": "Tampines area"},
-    "68": {"station": "Pasir Ris",      "walk_min": 8,  "walk_m": 640,  "display": "Pasir Ris area"},
-    "69": {"station": "Ang Mo Kio",     "walk_min": 8,  "walk_m": 640,  "display": "Ang Mo Kio area"},
-    "70": {"station": "Redhill",        "walk_min": 10, "walk_m": 800,  "display": "Bukit Merah area"},
-    "71": {"station": "Queenstown",     "walk_min": 10, "walk_m": 800,  "display": "Bukit Merah area"},
-    "72": {"station": "Toa Payoh",      "walk_min": 8,  "walk_m": 640,  "display": "Toa Payoh area"},
-    "73": {"station": "Toa Payoh",      "walk_min": 8,  "walk_m": 640,  "display": "Toa Payoh area"},
-    "74": {"station": "Paya Lebar",     "walk_min": 12, "walk_m": 960,  "display": "Marine Parade / Katong area"},
-    "75": {"station": "Kembangan",      "walk_min": 8,  "walk_m": 640,  "display": "Kembangan area"},
-    "76": {"station": "Tampines",       "walk_min": 10, "walk_m": 800,  "display": "Tampines / Upper Changi area"},
-    "77": {"station": "Pasir Ris",      "walk_min": 8,  "walk_m": 640,  "display": "Pasir Ris area"},
-    "78": {"station": "Pasir Ris",      "walk_min": 8,  "walk_m": 640,  "display": "Pasir Ris area"},
-    "79": {"station": "Hougang",        "walk_min": 8,  "walk_m": 640,  "display": "Hougang area"},
-    "80": {"station": "Hougang",        "walk_min": 8,  "walk_m": 640,  "display": "Hougang area"},
-    "81": {"station": "Sengkang",       "walk_min": 8,  "walk_m": 640,  "display": "Sengkang area"},
+    # District 01 — Raffles Place, Cecil, Marina, People's Park
+    "01": {"station": "Raffles Place",  "walk_min": 5,  "walk_m": 400,  "display": "Raffles Place / Cecil / Marina area"},
+    "02": {"station": "Raffles Place",  "walk_min": 8,  "walk_m": 640,  "display": "Raffles Place / Cecil area"},
+    "03": {"station": "Raffles Place",  "walk_min": 8,  "walk_m": 640,  "display": "Marina / People's Park area"},
+    "04": {"station": "Tanjong Pagar",  "walk_min": 8,  "walk_m": 640,  "display": "People's Park / Chinatown area"},
+    "05": {"station": "Tanjong Pagar",  "walk_min": 8,  "walk_m": 640,  "display": "Cecil / Robinson area"},
+    "06": {"station": "City Hall",      "walk_min": 5,  "walk_m": 400,  "display": "City Hall / Marina area"},
+
+    # District 02 — Anson, Tanjong Pagar
+    "07": {"station": "Tanjong Pagar",  "walk_min": 5,  "walk_m": 400,  "display": "Anson / Tanjong Pagar area"},
+    "08": {"station": "Tanjong Pagar",  "walk_min": 8,  "walk_m": 640,  "display": "Tanjong Pagar area"},
+
+    # District 04 — Telok Blangah, HarbourFront
+    "09": {"station": "HarbourFront",   "walk_min": 8,  "walk_m": 640,  "display": "Telok Blangah / HarbourFront area"},
+    "10": {"station": "Telok Blangah",  "walk_min": 8,  "walk_m": 640,  "display": "Telok Blangah / Mount Faber area"},
+
+    # District 05 — Pasir Panjang, Hong Leong Garden, Clementi
+    "11": {"station": "Pasir Panjang",  "walk_min": 8,  "walk_m": 640,  "display": "Pasir Panjang area"},
+    "12": {"station": "Kent Ridge",     "walk_min": 10, "walk_m": 800,  "display": "Hong Leong Garden / Science Park area"},
+    "13": {"station": "Clementi",       "walk_min": 10, "walk_m": 800,  "display": "Clementi New Town area"},
+
+    # District 03 — Queenstown, Tiong Bahru
+    "14": {"station": "Queenstown",     "walk_min": 8,  "walk_m": 640,  "display": "Queenstown area"},
+    "15": {"station": "Tiong Bahru",    "walk_min": 8,  "walk_m": 640,  "display": "Tiong Bahru area"},
+    "16": {"station": "Redhill",        "walk_min": 8,  "walk_m": 640,  "display": "Queenstown / Redhill area"},
+
+    # District 06 — High Street, Beach Road
+    "17": {"station": "City Hall",      "walk_min": 5,  "walk_m": 400,  "display": "High Street / Beach Road area"},
+
+    # District 07 — Middle Road, Golden Mile
+    "18": {"station": "Bugis",          "walk_min": 8,  "walk_m": 640,  "display": "Middle Road / Golden Mile area"},
+    "19": {"station": "Nicoll Highway", "walk_min": 8,  "walk_m": 640,  "display": "Golden Mile / Beach Road area"},
+
+    # District 08 — Little India
+    "20": {"station": "Little India",   "walk_min": 5,  "walk_m": 400,  "display": "Little India area"},
+    "21": {"station": "Farrer Park",    "walk_min": 8,  "walk_m": 640,  "display": "Little India / Farrer Park area"},
+
+    # District 09 — Orchard, Cairnhill, River Valley
+    "22": {"station": "Orchard",        "walk_min": 5,  "walk_m": 400,  "display": "Orchard / Cairnhill area"},
+    "23": {"station": "Somerset",       "walk_min": 8,  "walk_m": 640,  "display": "Orchard / River Valley area"},
+
+    # District 10 — Ardmore, Bukit Timah, Holland Road, Tanglin
+    "24": {"station": "Stevens",        "walk_min": 10, "walk_m": 800,  "display": "Ardmore / Tanglin area"},
+    "25": {"station": "Stevens",        "walk_min": 10, "walk_m": 800,  "display": "Ardmore / Bukit Timah area"},
+    "26": {"station": "Botanic Gardens","walk_min": 10, "walk_m": 800,  "display": "Bukit Timah / Holland area"},
+    "27": {"station": "Holland Village","walk_min": 8,  "walk_m": 640,  "display": "Holland Road / Tanglin area"},
+
+    # District 11 — Watten Estate, Novena, Thomson
+    "28": {"station": "Novena",         "walk_min": 8,  "walk_m": 640,  "display": "Watten Estate / Novena area"},
+    "29": {"station": "Novena",         "walk_min": 8,  "walk_m": 640,  "display": "Novena area"},
+    "30": {"station": "Newton",         "walk_min": 10, "walk_m": 800,  "display": "Thomson / Newton area"},
+
+    # District 12 — Balestier, Toa Payoh, Serangoon
+    "31": {"station": "Toa Payoh",      "walk_min": 8,  "walk_m": 640,  "display": "Balestier / Toa Payoh area"},
+    "32": {"station": "Toa Payoh",      "walk_min": 5,  "walk_m": 400,  "display": "Toa Payoh area"},
+    "33": {"station": "Serangoon",      "walk_min": 10, "walk_m": 800,  "display": "Serangoon area"},
+
+    # District 13 — Macpherson, Braddell
+    "34": {"station": "MacPherson",     "walk_min": 8,  "walk_m": 640,  "display": "Macpherson area"},
+    "35": {"station": "Braddell",       "walk_min": 8,  "walk_m": 640,  "display": "Braddell / Toa Payoh area"},
+    "36": {"station": "Tai Seng",       "walk_min": 8,  "walk_m": 640,  "display": "Macpherson / Tai Seng area"},
+    "37": {"station": "Braddell",       "walk_min": 8,  "walk_m": 640,  "display": "Braddell area"},
+
+    # District 14 — Geylang, Eunos
+    "38": {"station": "Aljunied",       "walk_min": 5,  "walk_m": 400,  "display": "Geylang area"},
+    "39": {"station": "Aljunied",       "walk_min": 8,  "walk_m": 640,  "display": "Geylang / Aljunied area"},
+    "40": {"station": "Eunos",          "walk_min": 8,  "walk_m": 640,  "display": "Eunos area"},
+    "41": {"station": "Kembangan",      "walk_min": 8,  "walk_m": 640,  "display": "Eunos / Kembangan area"},
+
+    # District 15 — Katong, Joo Chiat, Amber Road
+    "42": {"station": "Paya Lebar",     "walk_min": 10, "walk_m": 800,  "display": "Katong / Joo Chiat area"},
+    "43": {"station": "Paya Lebar",     "walk_min": 12, "walk_m": 960,  "display": "Katong / Amber Road area"},
+    "44": {"station": "Kembangan",      "walk_min": 10, "walk_m": 800,  "display": "Joo Chiat / Kembangan area"},
+    "45": {"station": "Kembangan",      "walk_min": 8,  "walk_m": 640,  "display": "Katong / Kembangan area"},
+
+    # District 16 — Bedok, Upper East Coast, Eastwood, Kew Drive
+    "46": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
+    "47": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok / Upper East Coast area"},
+    "48": {"station": "Bedok",          "walk_min": 10, "walk_m": 800,  "display": "Upper East Coast / Eastwood area"},
+
+    # District 17 — Loyang, Changi
+    "49": {"station": "Expo",           "walk_min": 12, "walk_m": 960,  "display": "Loyang / Changi area"},
+    "50": {"station": "Upper Changi",   "walk_min": 10, "walk_m": 800,  "display": "Changi / Upper Changi area"},
+    "81": {"station": "Expo",           "walk_min": 15, "walk_m": 1200, "display": "Changi Business Park / Airport area"},
+
+    # District 18 — Tampines, Pasir Ris
+    "51": {"station": "Tampines",       "walk_min": 8,  "walk_m": 640,  "display": "Tampines area"},
+    "52": {"station": "Pasir Ris",      "walk_min": 8,  "walk_m": 640,  "display": "Tampines / Pasir Ris area"},
+
+    # District 19 — Serangoon Garden, Hougang, Punggol
+    "53": {"station": "Serangoon",      "walk_min": 8,  "walk_m": 640,  "display": "Serangoon Garden area"},
+    "54": {"station": "Hougang",        "walk_min": 8,  "walk_m": 640,  "display": "Hougang area"},
+    "55": {"station": "Buangkok",       "walk_min": 10, "walk_m": 800,  "display": "Hougang / Buangkok area"},
     "82": {"station": "Punggol",        "walk_min": 8,  "walk_m": 640,  "display": "Punggol area"},
-    "83": {"station": "Woodlands",      "walk_min": 10, "walk_m": 800,  "display": "Woodlands area"},
-    "84": {"station": "Woodlands",      "walk_min": 10, "walk_m": 800,  "display": "Woodlands area"},
+
+    # District 20 — Bishan, Ang Mo Kio
+    "56": {"station": "Bishan",         "walk_min": 8,  "walk_m": 640,  "display": "Bishan area"},
+    "57": {"station": "Ang Mo Kio",     "walk_min": 8,  "walk_m": 640,  "display": "Ang Mo Kio area"},
+
+    # District 21 — Upper Bukit Timah, Clementi Park, Ulu Pandan
+    "58": {"station": "Beauty World",   "walk_min": 10, "walk_m": 800,  "display": "Upper Bukit Timah area"},
+    "59": {"station": "Clementi",       "walk_min": 10, "walk_m": 800,  "display": "Clementi Park / Ulu Pandan area"},
+
+    # District 22 — Jurong
+    "60": {"station": "Jurong East",    "walk_min": 10, "walk_m": 800,  "display": "Jurong East area"},
+    "61": {"station": "Jurong East",    "walk_min": 10, "walk_m": 800,  "display": "Jurong area"},
+    "62": {"station": "Chinese Garden", "walk_min": 10, "walk_m": 800,  "display": "Jurong / Chinese Garden area"},
+    "63": {"station": "Lakeside",       "walk_min": 10, "walk_m": 800,  "display": "Jurong / Lakeside area"},
+    "64": {"station": "Boon Lay",       "walk_min": 10, "walk_m": 800,  "display": "Jurong West / Boon Lay area"},
+
+    # District 23 — Hillview, Dairy Farm, Bukit Panjang, Choa Chu Kang
+    "65": {"station": "Hillview",       "walk_min": 8,  "walk_m": 640,  "display": "Hillview area"},
+    "66": {"station": "Dairy Farm",     "walk_min": 10, "walk_m": 800,  "display": "Dairy Farm / Bukit Panjang area"},
+    "67": {"station": "Bukit Panjang",  "walk_min": 8,  "walk_m": 640,  "display": "Bukit Panjang area"},
+    "68": {"station": "Choa Chu Kang",  "walk_min": 8,  "walk_m": 640,  "display": "Choa Chu Kang area"},
+
+    # District 24 — Lim Chu Kang, Tengah
+    "69": {"station": "Kranji",         "walk_min": 15, "walk_m": 1200, "display": "Lim Chu Kang area"},
+    "70": {"station": "Kranji",         "walk_min": 15, "walk_m": 1200, "display": "Lim Chu Kang / Tengah area"},
+    "71": {"station": "Choa Chu Kang",  "walk_min": 12, "walk_m": 960,  "display": "Tengah area"},
+
+    # District 25 — Kranji, Woodgrove, Woodlands
+    "72": {"station": "Kranji",         "walk_min": 8,  "walk_m": 640,  "display": "Kranji / Woodgrove area"},
+    "73": {"station": "Woodlands",      "walk_min": 8,  "walk_m": 640,  "display": "Woodlands area"},
+
+    # District 26 — Upper Thomson, Springleaf
+    "77": {"station": "Upper Thomson",  "walk_min": 8,  "walk_m": 640,  "display": "Upper Thomson area"},
+    "78": {"station": "Springleaf",     "walk_min": 8,  "walk_m": 640,  "display": "Springleaf / Upper Thomson area"},
+
+    # District 27 — Yishun, Sembawang
+    "75": {"station": "Yishun",         "walk_min": 8,  "walk_m": 640,  "display": "Yishun area"},
+    "76": {"station": "Sembawang",      "walk_min": 8,  "walk_m": 640,  "display": "Sembawang area"},
+
+    # District 28 — Seletar
+    "79": {"station": "Khatib",         "walk_min": 15, "walk_m": 1200, "display": "Seletar area"},
+    "80": {"station": "Khatib",         "walk_min": 15, "walk_m": 1200, "display": "Seletar area"},
 }
 
 _POSTAL_CODE_RE = re.compile(r"(?:^|[^\d])[sS]?(\d{6})(?:[^\d]|$)")
