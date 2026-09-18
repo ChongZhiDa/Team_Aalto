@@ -197,25 +197,30 @@
     </div>
 
     <!-- Floating Map Controls (Right Side) -->
-    <div class="absolute top-52 right-3 z-10 flex flex-col gap-2">
+    <div class="absolute top-52 right-3 z-10 flex flex-col gap-2 items-end">
       <button id="btn-recenter" title="Recenter Route" class="w-10 h-10 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-200 flex items-center justify-center shadow-lg transition">
         <i class="fa-solid fa-location-crosshairs text-sm"></i>
+      </button>
+      <!-- Toggle Alternative Routes Button -->
+      <button id="btn-toggle-all-routes" title="Show or hide alternative routes" class="h-9 px-3 rounded-full bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 border border-slate-700 text-slate-300 flex items-center gap-1.5 shadow-lg transition text-[11px] font-semibold">
+        <i id="toggle-all-icon" class="fa-solid fa-layer-group text-blue-400"></i>
+        <span id="toggle-all-label">Show Other Routes</span>
       </button>
     </div>
 
     <!-- Legal Map Attribution & Legend -->
-    <div class="absolute bottom-60 left-2 z-10 bg-slate-900/85 backdrop-blur px-2.5 py-1.5 rounded-lg border border-slate-800 text-[10px] text-slate-300 flex flex-col gap-1 shadow-lg pointer-events-auto">
+    <div class="absolute bottom-2 left-2 z-10 bg-slate-900/85 backdrop-blur px-2.5 py-1.5 rounded-lg border border-slate-800 text-[10px] text-slate-300 flex flex-col gap-1 shadow-lg pointer-events-auto">
       <div class="flex items-center gap-2">
         <span class="inline-block w-3 h-1 bg-emerald-500 rounded"></span>
         <span>EWL</span>
         <span class="inline-block w-3 h-1 bg-blue-500 rounded"></span>
-        <span>DTL (Bypass)</span>
+        <span>DTL</span>
         <span class="inline-block w-3 h-1 bg-purple-500 rounded"></span>
         <span>Bus 10e</span>
       </div>
       <div class="flex items-center gap-2">
         <span class="inline-block w-3 h-1 bg-rose-500 border border-dashed border-rose-300"></span>
-        <span>Disrupted Segment (Bedok-Bugis)</span>
+        <span>Disrupted Corridor</span>
       </div>
     </div>
   </main>
@@ -223,7 +228,7 @@
   <!-- ================================================================= -->
   <!-- GOOGLE MAPS BOTTOM TRANSIT SHEET                                  -->
   <!-- ================================================================= -->
-  <footer id="bottom-sheet" class="bg-slate-900 border-t border-slate-800 z-20 shrink-0 px-3 py-2 flex flex-col gap-2 max-h-56 overflow-y-auto">
+  <footer id="bottom-sheet" class="bg-slate-900 border-t border-slate-800 z-20 shrink-0 px-3 py-2 flex flex-col gap-2 max-h-80 md:max-h-96 overflow-y-auto transition-all">
     
     <!-- Drag Handle & Section Header -->
     <div class="flex flex-col items-center pb-1">
@@ -238,63 +243,90 @@
     <div class="grid grid-cols-1 gap-2" id="route-cards-list">
       
       <!-- Route 1: Primary East-West Line -->
-      <div id="card-primary-ewl" class="route-card p-2.5 rounded-xl border bg-slate-800/80 border-slate-700 flex items-center justify-between cursor-pointer transition">
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold text-xs">
-            <i class="fa-solid fa-train"></i>
-          </div>
-          <div>
-            <div class="flex items-center gap-1.5">
-              <span class="font-semibold text-xs text-white">East-West Line (Direct)</span>
-              <span id="ewl-crowd-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-amber-950 text-amber-300 border border-amber-800">CROWD: MOD</span>
+      <div id="card-primary-ewl" class="route-card p-2.5 rounded-xl border bg-slate-800/80 border-slate-700 flex flex-col gap-1 cursor-pointer transition">
+        <div class="flex items-center justify-between w-full">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold text-xs shrink-0">
+              <i class="fa-solid fa-train"></i>
             </div>
-            <p id="ewl-route-meta" class="text-[11px] text-slate-400">Leaves 07:40 • 42 mins total</p>
+            <div>
+              <div class="flex items-center gap-1 flex-wrap">
+                <span class="font-semibold text-xs text-white">East-West Line (Direct)</span>
+                <span id="ewl-crowd-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-amber-950 text-amber-300 border border-amber-800">CROWD: MOD</span>
+                <span id="ewl-exit-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-blue-950 text-blue-300 border border-blue-800 flex items-center gap-0.5"><i class="fa-solid fa-door-open text-[8px]"></i> EXIT B</span>
+                <span id="ewl-shelter-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-0.5">🛡️ 80% SHELTER</span>
+              </div>
+              <p id="ewl-route-meta" class="text-[11px] text-slate-400">Leaves 07:40 • 42 mins • Exit B to Office</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-right shrink-0">
+            <div>
+              <div id="ewl-arrival-time" class="text-sm font-bold text-emerald-400">08:24 AM</div>
+              <div id="ewl-delay-tag" class="text-[10px] text-slate-400">On Time</div>
+            </div>
+            <i id="ewl-chevron" class="fa-solid fa-chevron-down text-slate-500 text-[10px] transition-transform duration-200"></i>
           </div>
         </div>
-        <div class="text-right">
-          <div id="ewl-arrival-time" class="text-sm font-bold text-emerald-400">08:24 AM</div>
-          <div id="ewl-delay-tag" class="text-[10px] text-slate-400">On Time</div>
-        </div>
+        <!-- Collapsible Turn-by-Turn Steps -->
+        <div id="ewl-legs-container" class="hidden"></div>
       </div>
 
       <!-- Route 2: Downtown Line Bypass -->
-      <div id="card-bypass-dtl" class="route-card p-2.5 rounded-xl border bg-slate-800/40 border-slate-700/60 flex items-center justify-between cursor-pointer transition hover:border-blue-500">
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/40 flex items-center justify-center font-bold text-xs">
-            <i class="fa-solid fa-train-subway"></i>
-          </div>
-          <div>
-            <div class="flex items-center gap-1.5">
-              <span class="font-semibold text-xs text-white">Downtown Line Bypass</span>
-              <span class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800">CROWD: LOW</span>
+      <div id="card-bypass-dtl" class="route-card p-2.5 rounded-xl border bg-slate-800/40 border-slate-700/60 flex flex-col gap-1 cursor-pointer transition hover:border-blue-500">
+        <div class="flex items-center justify-between w-full">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/40 flex items-center justify-center font-bold text-xs shrink-0">
+              <i class="fa-solid fa-train-subway"></i>
             </div>
-            <p class="text-[11px] text-slate-400">Tampines DTL $\to$ Telok Ayer • 44 mins</p>
+            <div>
+              <div class="flex items-center gap-1 flex-wrap">
+                <span class="font-semibold text-xs text-white">Downtown Line Bypass</span>
+                <span id="dtl-crowd-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800">CROWD: LOW</span>
+                <span id="dtl-exit-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-blue-950 text-blue-300 border border-blue-800 flex items-center gap-0.5"><i class="fa-solid fa-door-open text-[8px]"></i> EXIT B</span>
+                <span id="dtl-shelter-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-0.5">🛡️ 95% SHELTER</span>
+              </div>
+              <p id="dtl-route-meta" class="text-[11px] text-slate-400">Tampines DTL &rarr; Telok Ayer • 44 mins • Exit B</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-right shrink-0">
+            <div>
+              <div id="dtl-arrival-time" class="text-sm font-bold text-blue-400">08:24 AM</div>
+              <div id="dtl-delay-tag" class="text-[10px] text-slate-400">Reliable Alternative</div>
+            </div>
+            <i id="dtl-chevron" class="fa-solid fa-chevron-down text-slate-500 text-[10px] transition-transform duration-200"></i>
           </div>
         </div>
-        <div class="text-right">
-          <div class="text-sm font-bold text-blue-400">08:24 AM</div>
-          <div class="text-[10px] text-slate-400">Reliable Alternative</div>
-        </div>
+        <!-- Collapsible Turn-by-Turn Steps -->
+        <div id="dtl-legs-container" class="hidden"></div>
       </div>
 
       <!-- Route 3: Express Bus 10e -->
-      <div id="card-bypass-bus10e" class="route-card p-2.5 rounded-xl border bg-slate-800/40 border-slate-700/60 flex items-center justify-between cursor-pointer transition hover:border-purple-500">
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-lg bg-purple-600/20 text-purple-400 border border-purple-500/40 flex items-center justify-center font-bold text-xs">
-            <i class="fa-solid fa-bus"></i>
-          </div>
-          <div>
-            <div class="flex items-center gap-1.5">
-              <span class="font-semibold text-xs text-white">Express Bus 10e</span>
-              <span class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800">SEATS AVAIL</span>
+      <div id="card-bypass-bus10e" class="route-card p-2.5 rounded-xl border bg-slate-800/40 border-slate-700/60 flex flex-col gap-1 cursor-pointer transition hover:border-purple-500">
+        <div class="flex items-center justify-between w-full">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-purple-600/20 text-purple-400 border border-purple-500/40 flex items-center justify-center font-bold text-xs shrink-0">
+              <i class="fa-solid fa-bus"></i>
             </div>
-            <p class="text-[11px] text-slate-400">Expressway via ECP to CBD • 45 mins</p>
+            <div>
+              <div class="flex items-center gap-1 flex-wrap">
+                <span class="font-semibold text-xs text-white">Express Bus 10e</span>
+                <span id="bus-crowd-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800">SEATS AVAIL</span>
+                <span id="bus-exit-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-purple-950 text-purple-300 border border-purple-800 flex items-center gap-0.5"><i class="fa-solid fa-bus text-[8px]"></i> STOP 03011</span>
+                <span id="bus-shelter-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-0.5">☂️ 55% SHELTER</span>
+              </div>
+              <p id="bus-route-meta" class="text-[11px] text-slate-400">Expressway via ECP to CBD • 45 mins • Fullerton</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-right shrink-0">
+            <div>
+              <div id="bus-arrival-time" class="text-sm font-bold text-slate-200">08:25 AM</div>
+              <div id="bus-delay-tag" class="text-[10px] text-slate-400">Guaranteed Seat</div>
+            </div>
+            <i id="bus-chevron" class="fa-solid fa-chevron-down text-slate-500 text-[10px] transition-transform duration-200"></i>
           </div>
         </div>
-        <div class="text-right">
-          <div class="text-sm font-bold text-slate-200">08:25 AM</div>
-          <div class="text-[10px] text-slate-400">Guaranteed Seat</div>
-        </div>
+        <!-- Collapsible Turn-by-Turn Steps -->
+        <div id="bus-legs-container" class="hidden"></div>
       </div>
 
     </div>

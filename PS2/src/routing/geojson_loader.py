@@ -140,3 +140,35 @@ def get_station_metadata(station_name: str) -> Optional[Dict[str, Any]]:
     normalized = normalize_station_name(station_name)
     return stations.get(normalized)
 
+
+def find_nearest_station(lat: float, lon: float) -> Tuple[Optional[Dict[str, Any]], float]:
+    """
+    Finds the nearest MRT/LRT station to given coordinates.
+    Returns (station_dict, distance_in_meters).
+    """
+    stations = load_geojson_stations()
+    if not stations:
+        return (None, float("inf"))
+
+    nearest_stn = None
+    min_dist_m = float("inf")
+
+    for stn in stations.values():
+        stn_lat, stn_lon = stn["coords"]
+        dy = (lat - stn_lat) * 111000.0
+        dx = (lon - stn_lon) * 110970.0
+        dist_m = (dx * dx + dy * dy) ** 0.5
+        if dist_m < min_dist_m:
+            min_dist_m = dist_m
+            nearest_stn = stn
+
+    return (nearest_stn, round(min_dist_m, 1))
+
+
+def get_station_polygon(station_name: str) -> Optional[List[List[float]]]:
+    """Returns outer polygon boundary coordinates [[lon, lat], ...] for station footprint rendering."""
+    meta = get_station_metadata(station_name)
+    if meta:
+        return meta.get("polygon")
+    return None
+

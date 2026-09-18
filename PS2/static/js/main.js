@@ -28,6 +28,12 @@ document.addEventListener('DOMContentLoaded', () => {
         mapController.renderLayers(currentData, activeRouteId);
       }
     },
+    onToggleAllRoutes: () => {
+      if (currentData) {
+        const isShowingAll = mapController.toggleAllRoutes(currentData, activeRouteId);
+        uiController.setAllRoutesButtonState(isShowingAll);
+      }
+    },
     onOpenScenarios: () => {
       loadAndRenderScenarios();
     },
@@ -87,6 +93,7 @@ function updateAppView(data) {
   uiController.updateTopBar(data);
   uiController.updateAlertBanner(data);
   uiController.updateRouteCards(data, activeRouteId);
+  uiController.setAllRoutesButtonState(mapController.showAllRoutes);
   mapController.renderLayers(data, activeRouteId);
 }
 
