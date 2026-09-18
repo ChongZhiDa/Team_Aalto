@@ -313,6 +313,118 @@ _LOCATIONS: Dict[str, Dict[str, Any]] = {
 _ALL_KEYS: List[str] = list(_LOCATIONS.keys())
 
 
+# ---------------------------------------------------------------------------
+# Singapore Postal Sector → Nearest MRT Station
+# Sectors are the first 2 digits of a 6-digit Singapore postal code.
+# Covers all ~80 active sectors. Walk estimates in minutes.
+# ---------------------------------------------------------------------------
+_POSTAL_SECTORS: Dict[str, Dict[str, Any]] = {
+    "01": {"station": "Raffles Place",  "walk_min": 8,  "walk_m": 640,  "display": "Raffles Place / Cecil / Marina area"},
+    "02": {"station": "Tanjong Pagar",  "walk_min": 8,  "walk_m": 640,  "display": "Anson / Tanjong Pagar area"},
+    "03": {"station": "Queenstown",     "walk_min": 10, "walk_m": 800,  "display": "Queenstown / Tiong Bahru area"},
+    "04": {"station": "Telok Blangah",  "walk_min": 8,  "walk_m": 640,  "display": "Telok Blangah / HarbourFront area"},
+    "05": {"station": "Pasir Panjang",  "walk_min": 10, "walk_m": 800,  "display": "Pasir Panjang / Clementi area"},
+    "06": {"station": "City Hall",      "walk_min": 8,  "walk_m": 640,  "display": "High Street / Beach Road area"},
+    "07": {"station": "Bugis",          "walk_min": 8,  "walk_m": 640,  "display": "Middle Road / Golden Mile area"},
+    "08": {"station": "Little India",   "walk_min": 8,  "walk_m": 640,  "display": "Little India / Farrer Park area"},
+    "09": {"station": "Orchard",        "walk_min": 8,  "walk_m": 640,  "display": "Orchard / Cairnhill / River Valley area"},
+    "10": {"station": "Stevens",        "walk_min": 10, "walk_m": 800,  "display": "Ardmore / Bukit Timah / Holland area"},
+    "11": {"station": "Novena",         "walk_min": 8,  "walk_m": 640,  "display": "Watten Estate / Novena / Thomson area"},
+    "12": {"station": "Toa Payoh",      "walk_min": 10, "walk_m": 800,  "display": "Balestier / Toa Payoh area"},
+    "13": {"station": "Braddell",       "walk_min": 10, "walk_m": 800,  "display": "MacPherson / Braddell area"},
+    "14": {"station": "Aljunied",       "walk_min": 8,  "walk_m": 640,  "display": "Geylang / Eunos area"},
+    "15": {"station": "Kembangan",      "walk_min": 10, "walk_m": 800,  "display": "Katong / Joo Chiat / Amber Road area"},
+    "16": {"station": "Bedok",          "walk_min": 10, "walk_m": 800,  "display": "Bedok / Upper East Coast area"},
+    "17": {"station": "Expo",           "walk_min": 15, "walk_m": 1200, "display": "Loyang / Changi area"},
+    "18": {"station": "Tampines",       "walk_min": 8,  "walk_m": 640,  "display": "Tampines area"},
+    "19": {"station": "Serangoon",      "walk_min": 10, "walk_m": 800,  "display": "Serangoon Garden / Hougang area"},
+    "20": {"station": "Ang Mo Kio",     "walk_min": 8,  "walk_m": 640,  "display": "Bishan / Ang Mo Kio area"},
+    "21": {"station": "Clementi",       "walk_min": 10, "walk_m": 800,  "display": "Upper Bukit Timah / Clementi Park area"},
+    "22": {"station": "Jurong East",    "walk_min": 10, "walk_m": 800,  "display": "Jurong area"},
+    "23": {"station": "Hillview",       "walk_min": 8,  "walk_m": 640,  "display": "Hillview / Bukit Panjang area"},
+    "24": {"station": "Kranji",         "walk_min": 15, "walk_m": 1200, "display": "Lim Chu Kang area"},
+    "25": {"station": "Kranji",         "walk_min": 12, "walk_m": 960,  "display": "Kranji / Woodgrove area"},
+    "26": {"station": "Upper Thomson",  "walk_min": 10, "walk_m": 800,  "display": "Upper Thomson / Springleaf area"},
+    "27": {"station": "Yishun",         "walk_min": 8,  "walk_m": 640,  "display": "Yishun / Sembawang area"},
+    "28": {"station": "Khatib",         "walk_min": 15, "walk_m": 1200, "display": "Seletar area"},
+    "29": {"station": "Sengkang",       "walk_min": 8,  "walk_m": 640,  "display": "Sengkang area"},
+    "30": {"station": "Sengkang",       "walk_min": 8,  "walk_m": 640,  "display": "Sengkang area"},
+    "31": {"station": "Buangkok",       "walk_min": 8,  "walk_m": 640,  "display": "Buangkok area"},
+    "32": {"station": "Punggol",        "walk_min": 8,  "walk_m": 640,  "display": "Punggol area"},
+    "33": {"station": "Woodlands",      "walk_min": 8,  "walk_m": 640,  "display": "Woodlands area"},
+    "34": {"station": "Admiralty",      "walk_min": 8,  "walk_m": 640,  "display": "Admiralty / Sembawang area"},
+    "35": {"station": "Yishun",         "walk_min": 8,  "walk_m": 640,  "display": "Yishun area"},
+    "36": {"station": "Choa Chu Kang",  "walk_min": 8,  "walk_m": 640,  "display": "Choa Chu Kang area"},
+    "37": {"station": "Bukit Panjang",  "walk_min": 8,  "walk_m": 640,  "display": "Bukit Panjang area"},
+    "38": {"station": "Bukit Panjang",  "walk_min": 8,  "walk_m": 640,  "display": "Bukit Panjang area"},
+    "39": {"station": "Hougang",        "walk_min": 8,  "walk_m": 640,  "display": "Hougang area"},
+    "40": {"station": "Toa Payoh",      "walk_min": 8,  "walk_m": 640,  "display": "Toa Payoh area"},
+    "41": {"station": "Bishan",         "walk_min": 8,  "walk_m": 640,  "display": "Bishan area"},
+    "42": {"station": "Serangoon",      "walk_min": 8,  "walk_m": 640,  "display": "Serangoon area"},
+    "43": {"station": "Kovan",          "walk_min": 8,  "walk_m": 640,  "display": "Kovan area"},
+    "44": {"station": "Kovan",          "walk_min": 8,  "walk_m": 640,  "display": "Kovan area"},
+    "45": {"station": "Woodlands",      "walk_min": 8,  "walk_m": 640,  "display": "Woodlands area"},
+    "46": {"station": "Boon Lay",       "walk_min": 10, "walk_m": 800,  "display": "Jurong West area"},
+    "47": {"station": "Boon Lay",       "walk_min": 10, "walk_m": 800,  "display": "Jurong West area"},
+    "48": {"station": "Joo Koon",       "walk_min": 10, "walk_m": 800,  "display": "Tuas area"},
+    "49": {"station": "Clementi",       "walk_min": 8,  "walk_m": 640,  "display": "Clementi area"},
+    "50": {"station": "Buona Vista",    "walk_min": 8,  "walk_m": 640,  "display": "Buona Vista area"},
+    "51": {"station": "Dover",          "walk_min": 8,  "walk_m": 640,  "display": "Dover area"},
+    "52": {"station": "Dover",          "walk_min": 8,  "walk_m": 640,  "display": "Dover area"},
+    "53": {"station": "Queenstown",     "walk_min": 8,  "walk_m": 640,  "display": "Queenstown area"},
+    "54": {"station": "Queenstown",     "walk_min": 8,  "walk_m": 640,  "display": "Queenstown area"},
+    "55": {"station": "Queenstown",     "walk_min": 8,  "walk_m": 640,  "display": "Queenstown area"},
+    "56": {"station": "Commonwealth",   "walk_min": 8,  "walk_m": 640,  "display": "Commonwealth area"},
+    "57": {"station": "Commonwealth",   "walk_min": 8,  "walk_m": 640,  "display": "Commonwealth area"},
+    "58": {"station": "Redhill",        "walk_min": 8,  "walk_m": 640,  "display": "Redhill / Bukit Merah area"},
+    "59": {"station": "Tiong Bahru",    "walk_min": 8,  "walk_m": 640,  "display": "Tiong Bahru area"},
+    "60": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
+    "61": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
+    "62": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
+    "63": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
+    "64": {"station": "Bedok",          "walk_min": 8,  "walk_m": 640,  "display": "Bedok area"},
+    "65": {"station": "Tampines",       "walk_min": 8,  "walk_m": 640,  "display": "Tampines area"},
+    "66": {"station": "Tampines",       "walk_min": 8,  "walk_m": 640,  "display": "Tampines area"},
+    "67": {"station": "Tampines",       "walk_min": 8,  "walk_m": 640,  "display": "Tampines area"},
+    "68": {"station": "Pasir Ris",      "walk_min": 8,  "walk_m": 640,  "display": "Pasir Ris area"},
+    "69": {"station": "Ang Mo Kio",     "walk_min": 8,  "walk_m": 640,  "display": "Ang Mo Kio area"},
+    "70": {"station": "Redhill",        "walk_min": 10, "walk_m": 800,  "display": "Bukit Merah area"},
+    "71": {"station": "Queenstown",     "walk_min": 10, "walk_m": 800,  "display": "Bukit Merah area"},
+    "72": {"station": "Toa Payoh",      "walk_min": 8,  "walk_m": 640,  "display": "Toa Payoh area"},
+    "73": {"station": "Toa Payoh",      "walk_min": 8,  "walk_m": 640,  "display": "Toa Payoh area"},
+    "74": {"station": "Paya Lebar",     "walk_min": 12, "walk_m": 960,  "display": "Marine Parade / Katong area"},
+    "75": {"station": "Kembangan",      "walk_min": 8,  "walk_m": 640,  "display": "Kembangan area"},
+    "76": {"station": "Tampines",       "walk_min": 10, "walk_m": 800,  "display": "Tampines / Upper Changi area"},
+    "77": {"station": "Pasir Ris",      "walk_min": 8,  "walk_m": 640,  "display": "Pasir Ris area"},
+    "78": {"station": "Pasir Ris",      "walk_min": 8,  "walk_m": 640,  "display": "Pasir Ris area"},
+    "79": {"station": "Hougang",        "walk_min": 8,  "walk_m": 640,  "display": "Hougang area"},
+    "80": {"station": "Hougang",        "walk_min": 8,  "walk_m": 640,  "display": "Hougang area"},
+    "81": {"station": "Sengkang",       "walk_min": 8,  "walk_m": 640,  "display": "Sengkang area"},
+    "82": {"station": "Punggol",        "walk_min": 8,  "walk_m": 640,  "display": "Punggol area"},
+    "83": {"station": "Woodlands",      "walk_min": 10, "walk_m": 800,  "display": "Woodlands area"},
+    "84": {"station": "Woodlands",      "walk_min": 10, "walk_m": 800,  "display": "Woodlands area"},
+}
+
+_POSTAL_CODE_RE = re.compile(r"(?:^|[^\d])[sS]?(\d{6})(?:[^\d]|$)")
+
+
+def _extract_postal_code(text: str) -> Optional[str]:
+    """
+    Extracts a 6-digit Singapore postal code from a text query.
+    Handles formats: '520123', 'S520123', 'Blk 123 Tampines St 21, 520123', etc.
+    Returns the 6-digit string, or None if not found.
+    """
+    # Direct 6-digit match (possibly prefixed with S/s)
+    text_stripped = text.strip()
+    if re.fullmatch(r"[sS]?\d{6}", text_stripped):
+        return text_stripped.lstrip("sS")
+    # Embedded in longer address string
+    match = _POSTAL_CODE_RE.search(text)
+    if match:
+        return match.group(1)
+    return None
+
+
 def _normalize(text: str) -> str:
     """Strip common MRT-related suffixes and normalise whitespace."""
     text = text.lower().strip()
@@ -336,6 +448,7 @@ def resolve_location(query: str, station_names: Optional[List[str]] = None) -> O
 
     Resolves any text query to {station, walk_min, walk_m, display, match_type, query}.
     Resolution priority:
+      0. Singapore postal code (6-digit or S+6-digit, embedded or standalone)
       1. Exact key match in location database
       2. difflib fuzzy match against location keys (cutoff 0.75)
       3. Token overlap match (e.g. "tampines 123" -> "tampines")
@@ -343,7 +456,8 @@ def resolve_location(query: str, station_names: Optional[List[str]] = None) -> O
       5. difflib fuzzy match against provided station names (cutoff 0.70)
 
     Args:
-        query: Raw user text (e.g. "NUS", "Tampines Mall", "jurong east mrt")
+        query: Raw user text (e.g. "520123", "Blk 30 Tampines St 11, S529558",
+               "NUS", "Tampines Mall", "jurong east mrt")
         station_names: Optional list of canonical station names from the graph router.
 
     Returns:
@@ -352,6 +466,19 @@ def resolve_location(query: str, station_names: Optional[List[str]] = None) -> O
     """
     if not query or not query.strip():
         return None
+
+    # --- Pass 0: Postal code detection ---
+    postal = _extract_postal_code(query)
+    if postal:
+        sector = postal[:2]
+        if sector in _POSTAL_SECTORS:
+            result = _POSTAL_SECTORS[sector].copy()
+            result.update({
+                "match_type": "postal_code",
+                "postal_code": postal,
+                "query": query,
+            })
+            return result
 
     normalized = _normalize(query)
 
