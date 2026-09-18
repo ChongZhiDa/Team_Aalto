@@ -25,6 +25,7 @@ from .personas import (
 )
 from .noise_filter import evaluate_noise_filter, UrgencyLevel
 from .custom_router import create_custom_user_route
+from .custom_route_adapter import custom_route_bp, register_custom_route_adapter
 from .advisor import (
     synthesize_actionable_advice,
     build_advisory_llm_prompt,
@@ -54,6 +55,8 @@ __all__ = [
     "save_personas",
     "load_personas",
     "create_custom_user_route",
+    "custom_route_bp",
+    "register_custom_route_adapter",
     "get_persona",
     "list_personas",
     "set_active_persona",

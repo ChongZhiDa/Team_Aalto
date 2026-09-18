@@ -183,8 +183,56 @@ export class UIController {
     // Persona toggle button & drawer buttons (Step A / C)
     const personaToggleBtn = document.getElementById('persona-toggle-btn');
     personaToggleBtn?.addEventListener('click', () => {
-      if (this.handlers.onCyclePersona) this.handlers.onCyclePersona();
+      this.openPersonaDrawer();
     });
+
+    // Persona Customizer drawer open / close
+    document.getElementById('persona-drawer-close-btn')?.addEventListener('click', () => {
+      this.closePersonaDrawer();
+    });
+
+    document.getElementById('btn-open-persona-drawer-from-scenarios')?.addEventListener('click', () => {
+      document.getElementById('scenario-drawer')?.classList.add('hidden');
+      this.openPersonaDrawer();
+    });
+
+    document.getElementById('btn-dismiss-custom-error')?.addEventListener('click', () => {
+      this.dismissCustomRouteError();
+    });
+
+    // Persona dropdown change in customizer
+    document.getElementById('persona-select-dropdown')?.addEventListener('change', (e) => {
+      if (this.handlers.onSelectPersonaDropdown) {
+        this.handlers.onSelectPersonaDropdown(e.target.value);
+      }
+    });
+
+    // New persona button
+    document.getElementById('btn-new-persona')?.addEventListener('click', () => {
+      if (this.handlers.onNewPersona) this.handlers.onNewPersona();
+    });
+
+    // Submit custom journey calculation
+    document.getElementById('btn-submit-custom-route')?.addEventListener('click', () => {
+      if (this.handlers.onSubmitCustomRoute) this.handlers.onSubmitCustomRoute();
+    });
+
+    // Save persona profile
+    document.getElementById('btn-save-persona')?.addEventListener('click', () => {
+      if (this.handlers.onSavePersona) this.handlers.onSavePersona();
+    });
+
+    // Load saved personas
+    document.getElementById('btn-load-persona')?.addEventListener('click', () => {
+      if (this.handlers.onLoadPersona) this.handlers.onLoadPersona();
+    });
+
+    // Reset to live default commute
+    const triggerResetCommute = () => {
+      if (this.handlers.onResetStandardCommute) this.handlers.onResetStandardCommute();
+    };
+    document.getElementById('btn-reset-standard-commute')?.addEventListener('click', triggerResetCommute);
+    document.getElementById('btn-reset-standard-commute-bottom')?.addEventListener('click', triggerResetCommute);
 
     ['rachel', 'arjun', 'mdm_lim'].forEach((pId) => {
       const btn = document.getElementById(`btn-persona-${pId.replace('_', '-')}`);
@@ -411,7 +459,9 @@ export class UIController {
     const pId = (data.persona_id || 'rachel').toLowerCase();
     const label = document.getElementById('active-persona-label');
     const display = document.getElementById('persona-name-display');
-    const nameStr = pId === 'arjun' ? 'Arjun (Cycle/CCL)' : pId === 'mdm_lim' ? 'Mdm Lim (Step-Free)' : 'Rachel (EWL)';
+    const nameStr = data.profile && data.profile.name 
+      ? `${data.profile.name} (${data.profile.tag || data.profile.persona || 'Active'})`
+      : (pId === 'arjun' ? 'Arjun (Cycle/CCL)' : pId === 'mdm_lim' ? 'Mdm Lim (Step-Free)' : 'Rachel (EWL)');
     if (label) label.textContent = nameStr;
     if (display) display.textContent = nameStr;
 
@@ -425,6 +475,11 @@ export class UIController {
         }
       }
     });
+
+    const selectDropdown = document.getElementById('persona-select-dropdown');
+    if (selectDropdown && data.persona_id) {
+      selectDropdown.value = data.persona_id;
+    }
   }
 
   renderCrowdChip(element, crowdLevel) {
@@ -470,8 +525,89 @@ export class UIController {
     const dtlCard = document.getElementById('card-bypass-dtl');
     const busCard = document.getElementById('card-bypass-bus10e');
 
+    // 0. Custom Commuter Route Card
+    if (routes.primary_custom) {
+      const custom = routes.primary_custom;
+      const titleEl = document.getElementById('ewl-route-name');
+      if (titleEl) titleEl.textContent = custom.title || 'Custom Commuter Route';
+
+      const arrivalEl = document.getElementById('ewl-arrival-time');
+      if (arrivalEl) {
+        arrivalEl.className = 'text-sm font-bold text-indigo-400';
+        arrivalEl.textContent = custom.estimated_arrival;
+      }
+
+      const metaEl = document.getElementById('ewl-route-meta');
+      const depTime = data.profile?.departure_time || '08:00 AM';
+      const shelter = custom.sheltered_percent ? ` • ${custom.sheltered_percent}% covered` : '';
+      if (metaEl) metaEl.textContent = `Leaves ${depTime} • ${custom.total_duration_min} mins total${shelter}`;
+
+      if (ewlIcon) {
+        if (custom.cycling_enabled) {
+          ewlIcon.className = 'fa-solid fa-bicycle text-emerald-400';
+        } else if (custom.step_free_certified) {
+          ewlIcon.className = 'fa-solid fa-wheelchair text-blue-400';
+        } else {
+          ewlIcon.className = 'fa-solid fa-route text-indigo-400';
+        }
+      }
+
+      const exitChip = document.getElementById('ewl-exit-chip');
+      if (exitChip) {
+        if (custom.step_free_certified) {
+          exitChip.innerHTML = `<i class="fa-solid fa-elevator text-[8px]"></i> STEP-FREE`;
+        } else if (custom.cycling_enabled) {
+          exitChip.innerHTML = `<i class="fa-solid fa-bicycle text-[8px]"></i> CYCLE`;
+        } else {
+          exitChip.innerHTML = `<i class="fa-solid fa-sliders text-[8px]"></i> CUSTOM`;
+        }
+      }
+
+      const shelterChip = document.getElementById('ewl-shelter-chip');
+      if (shelterChip) {
+        if (custom.step_free_certified) {
+          shelterChip.className = 'px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-0.5';
+          shelterChip.textContent = `🛡️ 100% STEP-FREE`;
+        } else if (custom.accessibility_status === 'unverified' && (data.profile?.requires_step_free || data.profile?.stair_aversion)) {
+          shelterChip.className = 'px-1.5 py-0.2 text-[9px] font-bold rounded bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-0.5';
+          shelterChip.textContent = `⚠️ ACCESSIBILITY UNVERIFIED`;
+        } else {
+          shelterChip.className = 'px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-0.5';
+          shelterChip.textContent = `🛡️ ${custom.sheltered_percent || 80}% SHELTER`;
+        }
+      }
+
+      const crowdChip = document.getElementById('ewl-crowd-chip');
+      this.renderCrowdChip(crowdChip, custom.crowd_level || 'm');
+
+      const delayEl = document.getElementById('ewl-delay-tag');
+      if (delayEl) {
+        if (custom.warnings && custom.warnings.length > 0) {
+          delayEl.className = 'text-[10px] text-amber-400 font-semibold';
+          delayEl.textContent = 'Advisory Notice';
+        } else {
+          delayEl.className = 'text-[10px] text-emerald-400 font-semibold';
+          delayEl.textContent = 'Constraint Verified';
+        }
+      }
+
+      const exitStationName = data.profile?.alighting_station ? `${data.profile.alighting_station} MRT` : 'Destination MRT';
+      const exitNoteText = custom.warnings && custom.warnings.length > 0
+        ? custom.warnings.join(' • ')
+        : (custom.step_free_certified ? 'Certified step-free path to destination' : 'Verified path via multimodal network');
+
+      this.renderRouteLegs('ewl-legs-container', custom.legs, 'indigo', {
+        exitStation: exitStationName,
+        exitDoor: 'Exit B',
+        exitNote: exitNoteText,
+        shelterPercent: custom.sheltered_percent || 80
+      });
+
+      if (dtlCard) dtlCard.classList.add('hidden');
+      if (busCard) busCard.classList.add('hidden');
+
     // 1. Primary Route Card (Persona-Specific Routing)
-    if (routes.primary_arjun) {
+    } else if (routes.primary_arjun) {
       // Render Arjun's multimodal cycling card
       const arjun = routes.primary_arjun;
       const titleEl = document.getElementById('ewl-route-name');
@@ -563,8 +699,9 @@ export class UIController {
       const ewlCrowd = document.getElementById('ewl-crowd-chip');
 
       if (ewlArrival) ewlArrival.textContent = ewl.estimated_arrival;
+      const depTime = data.profile?.departure_time || '07:40 AM';
       const ewlShelter = ewl.sheltered_percent ? ` (${ewl.sheltered_percent}% covered)` : '';
-      if (ewlMeta) ewlMeta.textContent = `Leaves 07:40 • ${ewl.total_duration_min} mins total${ewlShelter}`;
+      if (ewlMeta) ewlMeta.textContent = `Leaves ${depTime} • ${ewl.total_duration_min} mins total${ewlShelter}`;
 
       const ewlShelterChip = document.getElementById('ewl-shelter-chip');
       if (ewlShelterChip && ewl.sheltered_percent) {
@@ -1202,6 +1339,174 @@ export class UIController {
     if (h === 0) h = 12;
     const hStr = String(h).padStart(2, '0');
     return `${hStr}:${m} ${ampm}`;
+  }
+
+  openPersonaDrawer() {
+    const drawer = document.getElementById('persona-drawer');
+    drawer?.classList.remove('hidden');
+  }
+
+  closePersonaDrawer() {
+    const drawer = document.getElementById('persona-drawer');
+    drawer?.classList.add('hidden');
+  }
+
+  populatePersonaDropdown(personas = [], activeId = 'rachel') {
+    const dropdown = document.getElementById('persona-select-dropdown');
+    if (!dropdown) return;
+    dropdown.innerHTML = '';
+
+    personas.forEach((p) => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      const originStn = p.boarding_station || p.origin || 'MRT';
+      const destStn = p.alighting_station || p.destination || 'MRT';
+      opt.textContent = `${p.name} — ${p.tag || p.persona || 'Profile'} (${originStn} → ${destStn})`;
+      if (p.id === activeId) opt.selected = true;
+      dropdown.appendChild(opt);
+    });
+  }
+
+  fillPersonaForm(profile = {}) {
+    if (!profile) return;
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.value = val !== undefined && val !== null ? val : '';
+    };
+    const setChecked = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.checked = Boolean(val);
+    };
+
+    setVal('pref-name', profile.name || '');
+    setVal('pref-tag', profile.tag || '');
+    setVal('pref-walking-speed', profile.walking_speed_mps || 1.35);
+    setVal('pref-cycling-speed', profile.cycling_speed_mps || 4.0);
+    setVal('pref-max-walk-m', profile.max_walking_distance_m !== null && profile.max_walking_distance_m !== undefined ? profile.max_walking_distance_m : '');
+    setVal('pref-max-transfers', profile.max_transfers !== null && profile.max_transfers !== undefined ? profile.max_transfers : '');
+    setVal('pref-crowd-tolerance', profile.crowd_tolerance || 'normal');
+    setVal('pref-crowd-advance-lead', profile.crowd_advance_lead_min || 10);
+    setVal('pref-delay-threshold', profile.delay_threshold_min || 15);
+
+    setChecked('pref-requires-step-free', profile.requires_step_free);
+    setChecked('pref-requires-lift-monitoring', profile.requires_lift_monitoring);
+    setChecked('pref-stair-aversion', profile.stair_aversion);
+    setChecked('pref-cycling-enabled', profile.cycling_enabled);
+    setChecked('pref-avoid-cycling-rain', profile.avoid_cycling_in_rain !== false);
+  }
+
+  readPersonaForm() {
+    const getVal = (id) => document.getElementById(id)?.value?.trim() || '';
+    const getChecked = (id) => Boolean(document.getElementById(id)?.checked);
+    const getNum = (id) => {
+      const val = document.getElementById(id)?.value?.trim();
+      return val ? parseFloat(val) : null;
+    };
+
+    const maxWalk = getNum('pref-max-walk-m');
+    const maxTransfers = getNum('pref-max-transfers');
+
+    return {
+      name: getVal('pref-name') || 'Custom Commuter',
+      tag: getVal('pref-tag') || 'Custom Route',
+      walking_speed_mps: getNum('pref-walking-speed') || 1.35,
+      cycling_speed_mps: getNum('pref-cycling-speed') || 4.0,
+      max_walking_distance_m: maxWalk !== null && !isNaN(maxWalk) ? maxWalk : null,
+      max_transfers: maxTransfers !== null && !isNaN(maxTransfers) ? Math.round(maxTransfers) : null,
+      requires_step_free: getChecked('pref-requires-step-free'),
+      requires_lift_monitoring: getChecked('pref-requires-lift-monitoring'),
+      stair_aversion: getChecked('pref-stair-aversion'),
+      cycling_enabled: getChecked('pref-cycling-enabled'),
+      avoid_cycling_in_rain: getChecked('pref-avoid-cycling-rain'),
+      crowd_tolerance: getVal('pref-crowd-tolerance') || 'normal',
+      crowd_advance_lead_min: Math.round(getNum('pref-crowd-advance-lead') || 10),
+      delay_threshold_min: Math.round(getNum('pref-delay-threshold') || 15),
+      rain_active: getChecked('pref-rain-active')
+    };
+  }
+
+  renderCustomRouteError(errorData = {}) {
+    const banner = document.getElementById('custom-error-banner');
+    const title = document.getElementById('custom-error-title');
+    const msg = document.getElementById('custom-error-message');
+    const violations = document.getElementById('custom-error-violations');
+    const icon = document.getElementById('custom-error-icon');
+    if (!banner || !title || !msg) return;
+
+    banner.classList.remove('hidden');
+    const code = errorData.code || 'ROUTING_ERROR';
+
+    if (code === 'UNKNOWN_STATION') {
+      banner.className = 'p-2.5 rounded-xl border bg-rose-950/90 border-rose-600/90 text-xs leading-snug flex items-start gap-2 shadow-lg transition-all text-rose-200';
+      if (icon) icon.innerHTML = '<i class="fa-solid fa-circle-xmark text-rose-400"></i>';
+      title.textContent = 'Unknown Station Location';
+      msg.textContent = errorData.message || 'One or more stations could not be resolved to a known Singapore MRT station. Please check station spelling (e.g., "Tampines", "Raffles Place", "Jurong East").';
+      if (violations) violations.classList.add('hidden');
+    } else if (code === 'NO_FEASIBLE_ROUTE') {
+      banner.className = 'p-2.5 rounded-xl border bg-amber-950/90 border-amber-600/90 text-xs leading-snug flex items-start gap-2 shadow-lg transition-all text-amber-200';
+      if (icon) icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-amber-400"></i>';
+      title.textContent = 'Constraint Conflict — No Feasible Route';
+      msg.textContent = errorData.message || 'Transit paths exist between your stations, but none satisfy your strict profile limits.';
+      
+      if (violations && errorData.candidate_routes && errorData.candidate_routes.length > 0) {
+        const violationList = [];
+        errorData.candidate_routes.forEach((cand, idx) => {
+          if (cand.constraint_violations && cand.constraint_violations.length > 0) {
+            violationList.push(`• Option ${idx + 1} (${cand.title}): ${cand.constraint_violations.join(', ')}`);
+          }
+        });
+        if (violationList.length > 0) {
+          violations.classList.remove('hidden');
+          violations.innerHTML = `<div class="mt-1 text-amber-300 font-semibold">Violations detected:</div>${violationList.join('<br>')}<div class="mt-1 text-slate-300 text-[10px]">Tip: Try relaxing max transfers or walking distance limits.</div>`;
+        } else {
+          violations.classList.add('hidden');
+        }
+      } else if (violations) {
+        violations.classList.add('hidden');
+      }
+    } else if (code === 'NO_ROUTE') {
+      banner.className = 'p-2.5 rounded-xl border bg-rose-950/90 border-rose-600/90 text-xs leading-snug flex items-start gap-2 shadow-lg transition-all text-rose-200';
+      if (icon) icon.innerHTML = '<i class="fa-solid fa-circle-xmark text-rose-400"></i>';
+      title.textContent = 'No Transit Route Found';
+      msg.textContent = errorData.message || 'Could not find a connected transit path between the specified origin and destination.';
+      if (violations) violations.classList.add('hidden');
+    } else {
+      banner.className = 'p-2.5 rounded-xl border bg-rose-950/90 border-rose-600/90 text-xs leading-snug flex items-start gap-2 shadow-lg transition-all text-rose-200';
+      if (icon) icon.innerHTML = '<i class="fa-solid fa-circle-exclamation text-rose-400"></i>';
+      title.textContent = 'Custom Route Request Failed';
+      msg.textContent = errorData.message || 'An unexpected error occurred while calculating your custom route.';
+      if (violations) violations.classList.add('hidden');
+    }
+  }
+
+  dismissCustomRouteError() {
+    const banner = document.getElementById('custom-error-banner');
+    if (banner) banner.classList.add('hidden');
+  }
+
+  showPersonaSaveStatus(message, isError = false) {
+    const status = document.getElementById('persona-save-status');
+    if (!status) return;
+    status.className = isError ? 'text-[10px] text-rose-400 font-medium' : 'text-[10px] text-emerald-400 font-medium';
+    status.textContent = message;
+    setTimeout(() => {
+      if (status.textContent === message) status.textContent = '';
+    }, 4000);
+  }
+
+  setCustomJourneyActive(isActive, profileName = 'Custom Commuter', summary = '') {
+    const banner = document.getElementById('custom-journey-active-banner');
+    const nameLabel = document.getElementById('custom-journey-name-label');
+    const summaryLabel = document.getElementById('custom-journey-summary-label');
+    if (!banner) return;
+
+    if (isActive) {
+      banner.classList.remove('hidden');
+      if (nameLabel) nameLabel.textContent = `Custom Journey: ${profileName}`;
+      if (summaryLabel) summaryLabel.textContent = summary || 'Active profile overrides with verified constraints';
+    } else {
+      banner.classList.add('hidden');
+    }
   }
 }
 

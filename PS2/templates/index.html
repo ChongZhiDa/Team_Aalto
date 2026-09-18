@@ -308,6 +308,25 @@
       </div>
     </div>
 
+    <!-- Active Custom Journey Status Banner -->
+    <div id="custom-journey-active-banner" class="hidden p-2 rounded-xl bg-indigo-950/90 border border-indigo-500/80 flex items-center justify-between shadow-lg mb-1 transition-all">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] shrink-0">
+          <i class="fa-solid fa-sliders"></i>
+        </span>
+        <div class="min-w-0">
+          <div class="text-[11px] font-bold text-white truncate flex items-center gap-1.5">
+            <span id="custom-journey-name-label">Custom Journey Active</span>
+            <span class="px-1.5 py-0.2 text-[9px] bg-indigo-800 text-indigo-200 rounded font-mono">Custom Router</span>
+          </div>
+          <div id="custom-journey-summary-label" class="text-[10px] text-indigo-300 truncate">Constraint-verified route</div>
+        </div>
+      </div>
+      <button id="btn-reset-standard-commute-bottom" type="button" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[10px] font-medium shrink-0 transition">
+        Reset to Live
+      </button>
+    </div>
+
     <!-- Route Transit Cards -->
     <div class="grid grid-cols-1 gap-2" id="route-cards-list">
       
@@ -473,6 +492,10 @@
             <span class="text-[9px] text-amber-400">Step-Free</span>
           </button>
         </div>
+        <button id="btn-open-persona-drawer-from-scenarios" type="button" class="w-full mt-1 py-1.5 px-2 text-[11px] bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 rounded-lg border border-indigo-700/60 flex items-center justify-center gap-1.5 transition">
+          <i class="fa-solid fa-user-gear text-indigo-400"></i>
+          <span>Customize Profile & Route Limits &rarr;</span>
+        </button>
       </div>
 
       <div class="pt-2 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
@@ -482,6 +505,193 @@
           <option value="15" selected>15 min (Rachel's setting)</option>
           <option value="20">20 min</option>
         </select>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- COMMUTER PERSONA & CUSTOM JOURNEY DRAWER                          -->
+  <!-- ================================================================= -->
+  <div id="persona-drawer" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex flex-col justify-end hidden transition-opacity">
+    <div class="bg-slate-900 border-t border-slate-700 rounded-t-2xl p-4 max-w-lg mx-auto w-full shadow-2xl flex flex-col gap-3 max-h-[88vh] overflow-y-auto">
+      
+      <!-- Drawer Header -->
+      <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 rounded-full bg-indigo-600/30 border border-indigo-500/60 flex items-center justify-center text-indigo-400 text-xs">
+            <i class="fa-solid fa-user-gear"></i>
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-white leading-none">Commuter Persona Customizer</h2>
+            <span class="text-[10px] text-slate-400">Profile-driven routing with personalized constraints</span>
+          </div>
+        </div>
+        <button id="persona-drawer-close-btn" class="w-7 h-7 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center hover:text-white transition">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <!-- Domain Error / Warning Banner -->
+      <div id="custom-error-banner" class="hidden p-2.5 rounded-xl border text-xs leading-snug flex items-start gap-2 shadow-lg transition-all">
+        <span id="custom-error-icon" class="text-sm mt-0.5 shrink-0"><i class="fa-solid fa-triangle-exclamation"></i></span>
+        <div class="flex-1">
+          <div id="custom-error-title" class="font-bold text-xs">Error Title</div>
+          <div id="custom-error-message" class="text-[11px] text-slate-300 mt-0.5">Error description details</div>
+          <div id="custom-error-violations" class="mt-1 text-[10px] font-mono text-amber-300 hidden"></div>
+        </div>
+        <button id="btn-dismiss-custom-error" class="text-slate-400 hover:text-white text-xs shrink-0">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Persona Dropdown Selector & Quick Actions -->
+      <div class="flex flex-col gap-1.5 bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/80">
+        <div class="flex items-center justify-between">
+          <label for="persona-select-dropdown" class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+            <i class="fa-solid fa-users text-indigo-400"></i> Saved Persona Profile
+          </label>
+          <div class="flex items-center gap-1.5">
+            <button id="btn-new-persona" type="button" class="px-2 py-0.5 rounded bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/50 text-[10px] font-medium transition">
+              <i class="fa-solid fa-plus text-[9px]"></i> New Profile
+            </button>
+          </div>
+        </div>
+        <select id="persona-select-dropdown" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 transition">
+          <!-- Populated dynamically via GET /api/custom/personas -->
+          <option value="rachel">Rachel — EWL Direct (Corporate Commuter)</option>
+          <option value="arjun">Arjun — Cycle + CCL (Multimodal)</option>
+          <option value="mdm_lim">Mdm Lim — Step-Free (Barrier-Free Accessibility)</option>
+        </select>
+      </div>
+
+      <!-- Customizable Profile Form -->
+      <form id="persona-custom-form" class="flex flex-col gap-3">
+        
+        <!-- Basic Identity & Tags -->
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[11px] text-slate-400 mb-0.5">Commuter Name</label>
+            <input type="text" id="pref-name" class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500" placeholder="e.g. Rachel, Arjun..." />
+          </div>
+          <div>
+            <label class="block text-[11px] text-slate-400 mb-0.5">Profile Tag / Badge</label>
+            <input type="text" id="pref-tag" class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500" placeholder="e.g. EWL Direct" />
+          </div>
+        </div>
+
+        <!-- Speeds & Limits -->
+        <div class="bg-slate-800/40 p-2.5 rounded-xl border border-slate-800 flex flex-col gap-2">
+          <span class="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-gauge-high text-blue-400"></i> Speeds & Journey Limits
+          </span>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] text-slate-400 mb-0.5">Walking Speed (m/s)</label>
+              <input type="number" id="pref-walking-speed" step="0.05" min="0.5" max="3.0" value="1.35" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500" />
+              <span class="text-[9px] text-slate-500">Normal: 1.35 • Senior: 0.90</span>
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400 mb-0.5">Cycling Speed (m/s)</label>
+              <input type="number" id="pref-cycling-speed" step="0.1" min="1.0" max="10.0" value="4.0" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500" />
+              <span class="text-[9px] text-slate-500">Standard: 4.0 m/s (~14.4 km/h)</span>
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400 mb-0.5">Max Walking Distance (m)</label>
+              <input type="number" id="pref-max-walk-m" step="50" min="100" max="5000" placeholder="Unlimited (e.g. 800)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500" />
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400 mb-0.5">Max Transfers</label>
+              <input type="number" id="pref-max-transfers" min="0" max="5" placeholder="Unlimited (e.g. 2)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Accessibility, Mobility & Transit Modes -->
+        <div class="bg-slate-800/40 p-2.5 rounded-xl border border-slate-800 flex flex-col gap-2">
+          <span class="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-wheelchair text-emerald-400"></i> Accessibility & Travel Modes
+          </span>
+          <div class="grid grid-cols-2 gap-2 text-xs text-slate-300">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="pref-requires-step-free" class="rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-0" />
+              <span class="text-[11px]">Require Step-Free</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="pref-requires-lift-monitoring" class="rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-0" />
+              <span class="text-[11px]">Monitor Lifts</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="pref-stair-aversion" class="rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-0" />
+              <span class="text-[11px]">Stair Aversion</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="pref-cycling-enabled" class="rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-0" />
+              <span class="text-[11px]">Allow Cycling Leg</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer col-span-2">
+              <input type="checkbox" id="pref-avoid-cycling-rain" checked class="rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-0" />
+              <span class="text-[11px]">Avoid Cycling in Rain (Switch to Walking)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Crowd Tolerance & Alert Sensitivity -->
+        <div class="bg-slate-800/40 p-2.5 rounded-xl border border-slate-800 grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[10px] text-slate-400 mb-0.5">Crowd Tolerance</label>
+            <select id="pref-crowd-tolerance" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500">
+              <option value="low">Low (Avoid Crowds)</option>
+              <option value="normal" selected>Normal</option>
+              <option value="high">High (Tolerant)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[10px] text-slate-400 mb-0.5">Crowd Advance Lead</label>
+            <div class="flex items-center gap-1">
+              <input type="number" id="pref-crowd-advance-lead" min="0" max="60" value="10" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500" />
+              <span class="text-[10px] text-slate-400">min</span>
+            </div>
+          </div>
+          <div>
+            <label class="block text-[10px] text-slate-400 mb-0.5">Delay Alert Threshold</label>
+            <div class="flex items-center gap-1">
+              <input type="number" id="pref-delay-threshold" min="1" max="60" value="15" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500" />
+              <span class="text-[10px] text-slate-400">min</span>
+            </div>
+          </div>
+          <div class="flex flex-col justify-end">
+            <label class="flex items-center gap-1.5 cursor-pointer pb-1 text-xs text-slate-300">
+              <input type="checkbox" id="pref-rain-active" class="rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-0" />
+              <span class="text-[10px]"><i class="fa-solid fa-cloud-showers-heavy text-blue-400"></i> Simulate Rain Active</span>
+            </label>
+          </div>
+        </div>
+
+      </form>
+
+      <!-- Action Buttons Footer -->
+      <div class="pt-2 border-t border-slate-800 flex flex-col gap-2">
+        <div class="flex items-center gap-2">
+          <button id="btn-submit-custom-route" type="button" class="flex-1 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold py-2 px-3 rounded-xl text-xs shadow-lg flex items-center justify-center gap-1.5 transition">
+            <i class="fa-solid fa-route"></i>
+            <span>Plan Custom Journey</span>
+          </button>
+          <button id="btn-save-persona" type="button" title="Save profile to disk and memory" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl text-xs text-slate-200 font-medium flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-floppy-disk text-indigo-400"></i>
+            <span>Save</span>
+          </button>
+          <button id="btn-load-persona" type="button" title="Load profiles from disk" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl text-xs text-slate-200 font-medium flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-folder-open text-amber-400"></i>
+            <span>Load</span>
+          </button>
+        </div>
+        <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+          <span id="persona-save-status" class="text-[10px] text-emerald-400 truncate"></span>
+          <button id="btn-reset-standard-commute" type="button" class="text-slate-400 hover:text-slate-200 text-[10px] underline flex items-center gap-1">
+            <i class="fa-solid fa-rotate-left text-[9px]"></i> Reset to Live Default Commute
+          </button>
+        </div>
       </div>
 
     </div>
