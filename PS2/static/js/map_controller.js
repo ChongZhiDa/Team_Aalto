@@ -67,23 +67,39 @@ export class MapController {
         allBounds.push(layers.destination.coords);
       }
 
-      // 3. Walking legs (dashed lines connecting house to station)
+      // 3. Walking legs (turn-by-turn footpaths connecting house to station avoiding buildings)
       if (layers.walking_legs) {
         Object.values(layers.walking_legs).forEach(walk => {
           if (walk.coords && walk.coords.length >= 2) {
+            const distLabel = walk.distance_m ? ` (${Math.round(walk.distance_m)}m)` : '';
             L.polyline(walk.coords, {
-              color: '#94a3b8',
-              weight: 4,
+              color: '#38bdf8',
+              weight: 4.5,
               dashArray: '5, 7',
-              opacity: 0.95
-            }).addTo(this.layersGroup).bindPopup(`<b>Walking Route</b><br>${walk.name || 'Doorstep connection'}`);
+              opacity: 0.95,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }).addTo(this.layersGroup).bindPopup(`<b>Walking Route</b><br>${walk.name || 'Doorstep connection'}${distLabel}`);
             walk.coords.forEach(c => allBounds.push(c));
           }
         });
       }
 
-      // 4. Custom transit track polyline
-      if (layers.custom_track && layers.custom_track.length >= 2) {
+      // 4. Custom transit track polylines (colored per MRT line)
+      if (layers.custom_tracks && layers.custom_tracks.length > 0) {
+        layers.custom_tracks.forEach(track => {
+          if (track.coords && track.coords.length >= 2) {
+            L.polyline(track.coords, {
+              color: track.color || '#2563eb',
+              weight: 6,
+              opacity: 0.95,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }).addTo(this.layersGroup).bindPopup(`<b>${track.line || 'MRT'} Line</b><br>${layers.route_summary || 'Transit Segment'}`);
+            track.coords.forEach(c => allBounds.push(c));
+          }
+        });
+      } else if (layers.custom_track && layers.custom_track.length >= 2) {
         const trackColor = layers.track_color || '#2563eb';
         L.polyline(layers.custom_track, {
           color: trackColor,
@@ -98,7 +114,12 @@ export class MapController {
       // 5. Stations along the route
       if (layers.custom_stations) {
         layers.custom_stations.forEach(stn => {
-          const pinClass = stn.line === 'NEL' ? 'bg-purple-600' : (stn.line === 'DTL' ? 'bg-blue-600' : (stn.line === 'EWL' ? 'bg-emerald-600' : 'bg-slate-700'));
+          const pinClass = stn.line === 'NEL' ? 'bg-purple-600' :
+                           (stn.line === 'DTL' ? 'bg-blue-600' :
+                           (stn.line === 'EWL' ? 'bg-emerald-600' :
+                           (stn.line === 'CCL' ? 'bg-amber-500' :
+                           (stn.line === 'NSL' ? 'bg-red-600' :
+                           (stn.line === 'TEL' ? 'bg-yellow-800' : 'bg-slate-700')))));
           const icon = L.divIcon({
             className: '',
             html: `<div class="w-3.5 h-3.5 rounded-full ${pinClass} border-2 border-white shadow-md"></div>`,
@@ -108,7 +129,7 @@ export class MapController {
           L.marker(stn.coords, { icon }).addTo(this.layersGroup).bindPopup(`
             <div class="p-1 text-xs">
               <strong>${stn.name}</strong><br>
-              <span class="text-slate-600">${stn.line || 'MRT'} Line</span>
+              <span class="text-slate-600 font-medium">${stn.line || 'MRT'} Line</span>
             </div>
           `);
           allBounds.push(stn.coords);

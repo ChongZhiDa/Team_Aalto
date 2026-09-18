@@ -12,7 +12,7 @@ import json
 import urllib.request
 import urllib.parse
 from difflib import get_close_matches, SequenceMatcher
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from .geojson_loader import find_nearest_station
 
 
@@ -785,3 +785,71 @@ def suggest_locations(query: str, station_names: Optional[List[str]] = None, lim
                 )
 
     return suggestions
+
+
+# ---------------------------------------------------------------------------
+# Pedestrian Footpath Geometry Engine (Turn-by-turn routing avoiding buildings)
+# ---------------------------------------------------------------------------
+
+_PEDESTRIAN_CACHE: Dict[Tuple[float, float, float, float], Tuple[List[List[float]], float]] = {}
+
+
+def get_pedestrian_path(
+    start_coords: Optional[List[float]],
+    end_coords: Optional[List[float]],
+    timeout_sec: float = 3.5
+) -> Tuple[List[List[float]], float]:
+    """
+    Fetches real turn-by-turn pedestrian footpath coordinates avoiding buildings.
+    Uses OSRM public foot router with in-memory caching and graceful fallback.
+    Returns: (list of [lat, lon] coordinates, distance in meters)
+    """
+    if not start_coords or not end_coords or len(start_coords) < 2 or len(end_coords) < 2:
+        return [], 0.0
+
+    key = (
+        round(start_coords[0], 5), round(start_coords[1], 5),
+        round(end_coords[0], 5), round(end_coords[1], 5)
+    )
+    if key in _PEDESTRIAN_CACHE:
+        return _PEDESTRIAN_CACHE[key]
+
+    # Coordinate ordering: start_coords = [lat, lon], end_coords = [lat, lon]
+    # OSRM expects: lon1,lat1;lon2,lat2
+    url = (
+        f"https://router.project-osrm.org/route/v1/foot/"
+        f"{start_coords[1]:.6f},{start_coords[0]:.6f};"
+        f"{end_coords[1]:.6f},{end_coords[0]:.6f}"
+        f"?overview=full&geometries=geojson"
+    )
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "StationBuddy-Pedestrian/1.0", "Accept": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                if data.get("code") == "Ok" and data.get("routes"):
+                    route = data["routes"][0]
+                    # geometry.coordinates is [[lon, lat], ...]
+                    # Convert to Leaflet [[lat, lon], ...]
+                    pts = [[p[1], p[0]] for p in route["geometry"]["coordinates"]]
+                    # Ensure start doorstep pin and end station pin connect seamlessly
+                    if pts:
+                        if pts[0] != list(start_coords):
+                            pts.insert(0, list(start_coords))
+                        if pts[-1] != list(end_coords):
+                            pts.append(list(end_coords))
+                    dist_m = float(route.get("distance", 0.0))
+                    result = (pts, dist_m)
+                    _PEDESTRIAN_CACHE[key] = result
+                    return result
+    except Exception:
+        # Fallback gracefully to direct segment if external service is unreachable
+        pass
+
+    fallback_pts = [list(start_coords), list(end_coords)]
+    fallback_res = (fallback_pts, 0.0)
+    _PEDESTRIAN_CACHE[key] = fallback_res
+    return fallback_res

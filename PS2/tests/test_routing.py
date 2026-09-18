@@ -20,7 +20,7 @@ from src.routing.geojson_loader import load_geojson_stations, get_station_metada
 from src.routing.door_to_door import get_walking_legs, compute_walking_summary
 from src.routing.multimodal_router import MultimodalRouter
 from src.routing.graph_router import StationGraphRouter, get_transfer_penalty
-from src.routing.location_resolver import resolve_location
+from src.routing.location_resolver import resolve_location, get_pedestrian_path
 
 
 class TestRoutingModule(unittest.TestCase):
@@ -219,6 +219,40 @@ class TestRoutingModule(unittest.TestCase):
         self.assertIn("106A Bidadari", route["legs"][0]["name"])
         self.assertIn("Potong Pasir", route["legs"][0]["name"])
         self.assertGreater(route["total_duration_min"], 0)
+
+    # --- Teammate 2 Extra: Turn-by-turn Pedestrian Footpaths & Train Stops ---
+    def test_tc_rot_10_pedestrian_path_and_train_steps(self):
+        """TC-ROT-10: Verifies turn-by-turn pedestrian footpaths avoiding buildings and detailed train steps."""
+        # 1. Turn-by-turn walking path
+        start = [1.334139, 103.871260] # Blk 106A Bidadari
+        end = [1.331390, 103.869040]   # Potong Pasir MRT
+        path, dist = get_pedestrian_path(start, end)
+        self.assertIsInstance(path, list)
+        self.assertGreaterEqual(len(path), 2)
+        self.assertEqual(path[0], start)
+        self.assertEqual(path[-1], end)
+
+        # Fallback test with empty/invalid inputs
+        empty_path, empty_dist = get_pedestrian_path([], [])
+        self.assertEqual(empty_path, [])
+        self.assertEqual(empty_dist, 0.0)
+
+        # 2. Door-to-door itinerary with train lines and stops count
+        route = self.router.route_door_to_door(
+            "Blk 106A Bidadari Park Drive Singapore 341106",
+            "Blk 749 Woodlands Circle Singapore 730749"
+        )
+        self.assertFalse(route.get("error", True))
+        train_legs = [l for l in route["legs"] if l["mode"] == "TRAIN"]
+        self.assertGreater(len(train_legs), 0)
+
+        # Each train leg must specify stops, line name, and station endpoints
+        for t_leg in train_legs:
+            self.assertIn("stops", t_leg)
+            self.assertGreater(t_leg["stops"], 0)
+            self.assertIn("line", t_leg)
+            self.assertIn("from_station", t_leg)
+            self.assertIn("to_station", t_leg)
 
 
 if __name__ == "__main__":

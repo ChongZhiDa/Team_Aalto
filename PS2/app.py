@@ -64,11 +64,22 @@ def index():
     return render_template("index.html")
 
 
+LINE_COLORS = {
+    "EWL": "#10b981",  # Emerald
+    "DTL": "#2563eb",  # Blue
+    "NEL": "#8b5cf6",  # Purple
+    "CCL": "#f59e0b",  # Amber / Orange
+    "NSL": "#ef4444",  # Red
+    "TEL": "#92400e",  # Brown
+    "MRT": "#2563eb",
+}
+
+
 def _enrich_evaluation_with_custom_route(evaluation, origin, dest, rain_active=False):
     """
     If origin or destination are customized (not the default Tampines/Raffles Place corridor),
     replaces Rachel's hardcoded corridor with the door-to-door calculated route and
-    generates custom map layers for Leaflet rendering.
+    generates custom map layers for Leaflet rendering with real pedestrian footpaths.
     """
     if not origin or not dest:
         return evaluation
@@ -91,6 +102,8 @@ def _enrich_evaluation_with_custom_route(evaluation, origin, dest, rain_active=F
     dest_coords = dest_res.get("coordinates")
 
     from src.routing.geojson_loader import get_station_metadata
+    from src.routing.location_resolver import get_pedestrian_path
+
     first_stn_meta = get_station_metadata(orig_res.get("station", ""))
     last_stn_meta = get_station_metadata(dest_res.get("station", ""))
     first_stn_coord = first_stn_meta["coords"] if first_stn_meta else orig_coords
@@ -101,22 +114,28 @@ def _enrich_evaluation_with_custom_route(evaluation, origin, dest, rain_active=F
     if not dest_coords and last_stn_coord:
         dest_coords = last_stn_coord
 
+    # Real turn-by-turn pedestrian walking footpaths avoiding buildings
     walking_legs = {}
     if orig_coords and first_stn_coord:
+        origin_path, origin_dist = get_pedestrian_path(orig_coords, first_stn_coord)
         walking_legs["origin_walk"] = {
             "name": f"Walk from {orig_res.get('display')} to {orig_res.get('station')} MRT",
-            "coords": [orig_coords, first_stn_coord]
+            "coords": origin_path,
+            "distance_m": origin_dist,
         }
     if last_stn_coord and dest_coords:
+        dest_path, dest_dist = get_pedestrian_path(last_stn_coord, dest_coords)
         walking_legs["dest_walk"] = {
             "name": f"Walk from {dest_res.get('station')} MRT to {dest_res.get('display')}",
-            "coords": [last_stn_coord, dest_coords]
+            "coords": dest_path,
+            "distance_m": dest_dist,
         }
 
     # Station coordinates along path
     segments = route_res.get("path_segments", [])
     custom_stations = []
     custom_track = []
+    custom_tracks = []
     seen_stns = set()
 
     for seg in segments:
@@ -132,6 +151,28 @@ def _enrich_evaluation_with_custom_route(evaluation, origin, dest, rain_active=F
                         "code": seg.get("line", "MRT")
                     })
                     custom_track.append(smeta["coords"])
+
+    # Group transit segments by MRT line for multi-color rail tracks
+    curr_track = None
+    for seg in segments:
+        m1 = get_station_metadata(seg.get("from_station", ""))
+        m2 = get_station_metadata(seg.get("to_station", ""))
+        if not m1 or not m2:
+            continue
+        line_code = seg.get("line", "MRT")
+        color = LINE_COLORS.get(line_code, "#2563eb")
+        if not curr_track or curr_track["line"] != line_code:
+            if curr_track:
+                custom_tracks.append(curr_track)
+            curr_track = {
+                "line": line_code,
+                "color": color,
+                "coords": [m1["coords"], m2["coords"]]
+            }
+        else:
+            curr_track["coords"].append(m2["coords"])
+    if curr_track:
+        custom_tracks.append(curr_track)
 
     primary_line = route_res.get("line", "DTL")
     track_color = LINE_COLORS.get(primary_line, "#2563eb")
@@ -171,6 +212,7 @@ def _enrich_evaluation_with_custom_route(evaluation, origin, dest, rain_active=F
         },
         "walking_legs": walking_legs,
         "custom_track": custom_track,
+        "custom_tracks": custom_tracks,
         "custom_stations": custom_stations,
         "track_color": track_color,
         "route_summary": route_res.get("status", ""),
