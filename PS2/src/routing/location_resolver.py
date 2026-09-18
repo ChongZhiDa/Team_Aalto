@@ -435,7 +435,7 @@ _POSTAL_SECTORS: Dict[str, Dict[str, Any]] = {
 
     # District 23 — Hillview, Dairy Farm, Bukit Panjang, Choa Chu Kang
     "65": {"station": "Hillview",       "walk_min": 8,  "walk_m": 640,  "display": "Hillview area"},
-    "66": {"station": "Dairy Farm",     "walk_min": 10, "walk_m": 800,  "display": "Dairy Farm / Bukit Panjang area"},
+    "66": {"station": "Hillview",       "walk_min": 10, "walk_m": 800,  "display": "Dairy Farm / Hillview area"},
     "67": {"station": "Bukit Panjang",  "walk_min": 8,  "walk_m": 640,  "display": "Bukit Panjang area"},
     "68": {"station": "Choa Chu Kang",  "walk_min": 8,  "walk_m": 640,  "display": "Choa Chu Kang area"},
 
@@ -476,9 +476,22 @@ def lookup_exact_address_onemap(query: str) -> Optional[Dict[str, Any]]:
 
     clean_q = query.strip()
     postal = _extract_postal_code(clean_q)
-    search_target = postal if postal else clean_q
 
-    # Check cache first
+    # Check cache first with full query
+    if clean_q.upper() in _ONEMAP_CACHE:
+        return _ONEMAP_CACHE[clean_q.upper()]
+
+    if postal:
+        search_target = postal
+    else:
+        # Strip parentheses like "(The Skywoods)" or "(Alkaff Vista)"
+        clean_search = re.sub(r"\(.*?\)", "", clean_q).strip()
+        # Strip leading "Blk" or "Block"
+        clean_search = re.sub(r"^(?:blk|block)\s+", "", clean_search, flags=re.I).strip()
+        # Strip trailing ", Singapore" or postal
+        clean_search = re.sub(r",\s*singapore\s*\d*", "", clean_search, flags=re.I).strip()
+        search_target = clean_search if clean_search else clean_q
+
     cache_key = search_target.upper()
     if cache_key in _ONEMAP_CACHE:
         return _ONEMAP_CACHE[cache_key]
@@ -486,7 +499,7 @@ def lookup_exact_address_onemap(query: str) -> Optional[Dict[str, Any]]:
     # Only invoke OneMap if query has a postal code or address keywords
     is_address_like = bool(postal) or any(
         k in clean_q.lower()
-        for k in ["blk", "road", "street", "st", "ave", "avenue", "drive", "dr", "lorong", "jalan", "lane", "way", "park", "close", "crescent", "place"]
+        for k in ["blk", "road", "street", "st", "ave", "avenue", "drive", "dr", "heights", "lorong", "jalan", "lane", "way", "park", "close", "crescent", "place"]
     )
     if not is_address_like:
         return None
@@ -547,7 +560,12 @@ def lookup_exact_address_onemap(query: str) -> Optional[Dict[str, Any]]:
                 "needs_feeder_bus": needs_bus,
                 "query": query,
             }
+            # Cache under multiple keys for instant future hits
             _ONEMAP_CACHE[cache_key] = result
+            _ONEMAP_CACHE[clean_q.upper()] = result
+            _ONEMAP_CACHE[display_name.upper()] = result
+            if post:
+                _ONEMAP_CACHE[post.upper()] = result
             return result
     except Exception:
         # Fallback cleanly on network failure or timeout

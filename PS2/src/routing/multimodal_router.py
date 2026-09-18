@@ -663,4 +663,5 @@ class MultimodalRouter:
             "sheltered_percent": 80,
             "error": False,
             "legs": legs,
+            "path_segments": path.get("segments", []),
         }

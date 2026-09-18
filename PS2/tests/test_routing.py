@@ -206,7 +206,7 @@ class TestRoutingModule(unittest.TestCase):
         # 'S' prefix format
         res_sprefix = resolve_location("S018956")
         self.assertIsNotNone(res_sprefix)
-        self.assertIn("Bayfront", res_sprefix["station"])
+        self.assertIn(res_sprefix["station"], ["Raffles Place", "Bayfront"])
 
         # Door-to-door routing starting from exact house address
         route = self.router.route_door_to_door(

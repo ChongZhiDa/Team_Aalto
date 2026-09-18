@@ -64,13 +64,133 @@ def index():
     return render_template("index.html")
 
 
+def _enrich_evaluation_with_custom_route(evaluation, origin, dest, rain_active=False):
+    """
+    If origin or destination are customized (not the default Tampines/Raffles Place corridor),
+    replaces Rachel's hardcoded corridor with the door-to-door calculated route and
+    generates custom map layers for Leaflet rendering.
+    """
+    if not origin or not dest:
+        return evaluation
+
+    orig_str = str(origin).strip()
+    dest_str = str(dest).strip()
+
+    # Check if this is a custom route rather than Rachel's default Tampines -> Raffles corridor
+    is_custom = bool("tampines" not in orig_str.lower() or "raffles" not in dest_str.lower())
+    if not is_custom:
+        return evaluation
+
+    route_res = _router.route_door_to_door(orig_str, dest_str, rain_active=rain_active)
+    if not route_res or route_res.get("error"):
+        return evaluation
+
+    orig_res = route_res.get("origin_resolved", {})
+    dest_res = route_res.get("dest_resolved", {})
+    orig_coords = orig_res.get("coordinates")
+    dest_coords = dest_res.get("coordinates")
+
+    from src.routing.geojson_loader import get_station_metadata
+    first_stn_meta = get_station_metadata(orig_res.get("station", ""))
+    last_stn_meta = get_station_metadata(dest_res.get("station", ""))
+    first_stn_coord = first_stn_meta["coords"] if first_stn_meta else orig_coords
+    last_stn_coord = last_stn_meta["coords"] if last_stn_meta else dest_coords
+
+    if not orig_coords and first_stn_coord:
+        orig_coords = first_stn_coord
+    if not dest_coords and last_stn_coord:
+        dest_coords = last_stn_coord
+
+    walking_legs = {}
+    if orig_coords and first_stn_coord:
+        walking_legs["origin_walk"] = {
+            "name": f"Walk from {orig_res.get('display')} to {orig_res.get('station')} MRT",
+            "coords": [orig_coords, first_stn_coord]
+        }
+    if last_stn_coord and dest_coords:
+        walking_legs["dest_walk"] = {
+            "name": f"Walk from {dest_res.get('station')} MRT to {dest_res.get('display')}",
+            "coords": [last_stn_coord, dest_coords]
+        }
+
+    # Station coordinates along path
+    segments = route_res.get("path_segments", [])
+    custom_stations = []
+    custom_track = []
+    seen_stns = set()
+
+    for seg in segments:
+        for sname in [seg.get("from_station", ""), seg.get("to_station", "")]:
+            if sname and sname.lower() not in seen_stns:
+                seen_stns.add(sname.lower())
+                smeta = get_station_metadata(sname)
+                if smeta:
+                    custom_stations.append({
+                        "name": smeta["name"],
+                        "coords": smeta["coords"],
+                        "line": seg.get("line", "MRT"),
+                        "code": seg.get("line", "MRT")
+                    })
+                    custom_track.append(smeta["coords"])
+
+    primary_line = route_res.get("line", "DTL")
+    track_color = LINE_COLORS.get(primary_line, "#2563eb")
+
+    evaluation["is_custom"] = True
+    evaluation["routes"]["primary_ewl"] = {
+        "id": "primary_ewl",
+        "title": route_res["title"],
+        "transit_type": route_res["transit_type"],
+        "line": route_res["line"],
+        "lines_used": route_res["lines_used"],
+        "total_duration_min": route_res["total_duration_min"],
+        "estimated_arrival": route_res["estimated_arrival"],
+        "delay_minutes": 0,
+        "status": route_res["status"],
+        "crowd_level": "m",
+        "is_recommended": True,
+        "sheltered_percent": route_res.get("sheltered_percent", 75),
+        "legs": route_res["legs"]
+    }
+
+    lines_str = " -> ".join(route_res.get("lines_used", []))
+    evaluation["decision"]["headline"] = f"Route: {orig_res.get('display')} to {dest_res.get('display')}"
+    evaluation["decision"]["one_line_advice"] = f"Via {lines_str} ({route_res.get('status')}). Travel time: {route_res.get('total_duration_min')} mins."
+    evaluation["decision"]["is_delayed"] = False
+    evaluation["decision"]["urgency"] = "CALM"
+
+    evaluation["map_layers"] = {
+        "is_custom": True,
+        "origin": {
+            "name": orig_res.get("display", orig_str),
+            "coords": orig_coords
+        },
+        "destination": {
+            "name": dest_res.get("display", dest_str),
+            "coords": dest_coords
+        },
+        "walking_legs": walking_legs,
+        "custom_track": custom_track,
+        "custom_stations": custom_stations,
+        "track_color": track_color,
+        "route_summary": route_res.get("status", ""),
+        "ewl_stations": [],
+        "dtl_stations": [],
+        "ewl_track": [],
+        "dtl_track": [],
+    }
+    return evaluation
+
+
 @app.route("/api/status", methods=["GET"])
 def get_commute_status():
     """Returns current proactive status, noise filter decisions, and route coordinates."""
     arrival_time = request.args.get("arrival_time")
     origin = request.args.get("origin")
     dest = request.args.get("destination")
+    rain_active = request.args.get("rain", "0") == "1"
     evaluation = engine.evaluate_commute(custom_arrival=arrival_time, custom_origin=origin, custom_dest=dest)
+    evaluation = _enrich_evaluation_with_custom_route(evaluation, origin, dest, rain_active=rain_active)
     return jsonify(evaluation)
 
 
@@ -115,10 +235,12 @@ def update_settings():
     arrival_time = data.get("arrival_time") or RACHEL_PROFILE.get("deadline_arrival")
     origin = data.get("origin") or RACHEL_PROFILE.get("origin")
     dest = data.get("destination") or RACHEL_PROFILE.get("destination")
+    eval_data = engine.evaluate_commute(custom_arrival=arrival_time, custom_origin=origin, custom_dest=dest)
+    eval_data = _enrich_evaluation_with_custom_route(eval_data, origin, dest)
     return jsonify({
         "status": "success",
         "profile": RACHEL_PROFILE,
-        "data": engine.evaluate_commute(custom_arrival=arrival_time, custom_origin=origin, custom_dest=dest)
+        "data": eval_data
     })
 
 

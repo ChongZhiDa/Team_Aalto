@@ -290,8 +290,17 @@ export class UIController {
     const ewlMeta = document.getElementById('ewl-route-meta');
     const ewlCrowd = document.getElementById('ewl-crowd-chip');
 
+    const titleEl = document.querySelector('#card-primary-ewl .font-semibold');
+    if (titleEl) {
+      titleEl.textContent = ewl.title || 'East-West Line (Direct)';
+    }
+
     if (ewlArrival) ewlArrival.textContent = ewl.estimated_arrival;
-    if (ewlMeta) ewlMeta.textContent = `Leaves 07:40 • ${ewl.total_duration_min} mins total`;
+    if (ewlMeta) {
+      ewlMeta.textContent = ewl.status 
+        ? `${ewl.status} • ${ewl.total_duration_min} mins total`
+        : `Leaves 07:40 • ${ewl.total_duration_min} mins total`;
+    }
 
     if (ewl.delay_minutes > 0) {
       if (ewlArrival) ewlArrival.className = 'text-sm font-bold text-rose-400';
@@ -313,6 +322,35 @@ export class UIController {
         ewlCrowd.className = 'px-1.5 py-0.2 text-[9px] font-bold rounded bg-amber-950 text-amber-300 border border-amber-800';
         ewlCrowd.textContent = 'CROWD: MOD';
       }
+    }
+
+    // Custom route step cards for First Mile & Last Mile breakdown
+    if (data.is_custom && ewl.legs && ewl.legs.length > 0) {
+      const card2Title = document.querySelector('#card-bypass-dtl .font-semibold');
+      const card2Meta = document.querySelector('#card-bypass-dtl p');
+      const card2Time = document.querySelector('#card-bypass-dtl .font-bold.text-sm');
+      const card2Tag = document.querySelector('#card-bypass-dtl .text-\\[10px\\]');
+      const card2Chip = document.querySelector('#card-bypass-dtl .rounded');
+      
+      const firstLeg = ewl.legs[0];
+      if (card2Title) card2Title.textContent = `Step 1: ${firstLeg.mode}`;
+      if (card2Meta) card2Meta.textContent = `${firstLeg.name} (${firstLeg.distance || ''})`;
+      if (card2Time) card2Time.textContent = firstLeg.duration;
+      if (card2Tag) card2Tag.textContent = firstLeg.sheltered_percent ? `${firstLeg.sheltered_percent}% sheltered` : 'Doorstep';
+      if (card2Chip) card2Chip.textContent = 'FIRST MILE';
+
+      const card3Title = document.querySelector('#card-bypass-bus10e .font-semibold');
+      const card3Meta = document.querySelector('#card-bypass-bus10e p');
+      const card3Time = document.querySelector('#card-bypass-bus10e .font-bold.text-sm');
+      const card3Tag = document.querySelector('#card-bypass-bus10e .text-\\[10px\\]');
+      const card3Chip = document.querySelector('#card-bypass-bus10e .rounded');
+      
+      const lastLeg = ewl.legs[ewl.legs.length - 1];
+      if (card3Title) card3Title.textContent = `Final Step: ${lastLeg.mode}`;
+      if (card3Meta) card3Meta.textContent = `${lastLeg.name} (${lastLeg.distance || ''})`;
+      if (card3Time) card3Time.textContent = lastLeg.duration;
+      if (card3Tag) card3Tag.textContent = 'Destination Doorstep';
+      if (card3Chip) card3Chip.textContent = 'LAST MILE';
     }
 
     this.highlightActiveCard(activeRouteId);
