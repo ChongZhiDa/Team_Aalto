@@ -124,6 +124,49 @@ class TestRoutingModule(unittest.TestCase):
         self.assertGreaterEqual(ewl_wet["total_duration_min"], 43)
         self.assertIn("Rain", ewl_wet["status"])
 
+    # --- Teammate 2 Extra: Nearest Station Lookup & Station Footprint Polygons ---
+    def test_tc_rot_05_find_nearest_station_and_polygon(self):
+        """TC-ROT-05: Verifies spatial nearest-station lookup and boundary polygon retrieval."""
+        from src.routing.geojson_loader import find_nearest_station, get_station_polygon
+        stn, dist_m = find_nearest_station(1.3533, 103.9452)
+        self.assertIsNotNone(stn)
+        self.assertEqual(stn["name"], "TAMPINES")
+        self.assertLess(dist_m, 500)
+
+        poly = get_station_polygon("Tampines")
+        self.assertIsNotNone(poly)
+        self.assertGreater(len(poly), 10, "Polygon must contain outer ring coordinates.")
+
+    # --- Teammate 2 Extra: Arjun's Multi-Modal Cycling & Rain Adaptation ---
+    def test_tc_rot_06_arjun_multimodal_cycling_and_rain(self):
+        """TC-ROT-06: Verifies Arjun's multimodal commute dynamically shifts between cycling and rain mode."""
+        # Good weather: 4m cycling leg
+        dry = self.router.compute_arjun_journey(rain_active=False)
+        self.assertTrue(dry["cycling_enabled"])
+        self.assertEqual(dry["legs"][0]["mode"], "CYCLE")
+        self.assertEqual(dry["total_duration_min"], 44)
+
+        # Monsoon rain: Swaps open cycling to sheltered LRT linkway
+        wet = self.router.compute_arjun_journey(rain_active=True)
+        self.assertFalse(wet["cycling_enabled"])
+        self.assertEqual(wet["legs"][0]["mode"], "WALK")
+        self.assertIn("Rain", wet["status"])
+
+    # --- Teammate 2 Extra: Mdm Lim's Accessibility & Lift Maintenance Warning ---
+    def test_tc_rot_07_mdm_lim_step_free_and_lift_outage(self):
+        """TC-ROT-07: Verifies step-free path certification and lift breakdown rerouting for Mdm Lim."""
+        # Baseline normal: step-free certified
+        normal = self.router.compute_mdm_lim_journey(rain_active=False)
+        self.assertTrue(normal["step_free_certified"])
+        self.assertFalse(normal["has_lift_alert"])
+        self.assertEqual(normal["total_duration_min"], 43)
+
+        # Lift maintenance at Outram Park: triggers warning and reroutes to ramp (+4m)
+        outage = self.router.compute_mdm_lim_journey(rain_active=False, lift_outages=["OUTRAM PARK"])
+        self.assertTrue(outage["has_lift_alert"])
+        self.assertIn("Lift out of service", outage["status"])
+        self.assertEqual(outage["total_duration_min"], 47)
+
 
 if __name__ == "__main__":
     unittest.main()
