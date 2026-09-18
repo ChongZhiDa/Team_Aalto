@@ -113,6 +113,20 @@ class CommuterEngine:
         bypass_dtl = self.router.compute_dtl_bypass(dtl_crowd, is_active_bypass=is_delayed)
         bypass_bus = self.router.compute_bus_bypass()
 
+        # Enrich bus bypass with live crowding from v3/BusArrival
+        bus_load = self.datamall.get_bus_load("76239", "10e")
+        if bus_load["source"] == "live":
+            bypass_bus["status"] = bus_load["status"]
+            bypass_bus["crowd_level"] = (
+                "l" if bus_load["load"] == "SEA"
+                else "m" if bus_load["load"] == "SDA"
+                else "h"
+            )
+            bypass_bus["bus_load_source"] = "live"
+        else:
+            bypass_bus["bus_load_source"] = "fallback"
+
+
         # 3. Actionable Advice generation
         notice_text = alerts_data.get("Message", [{}])[0].get("Content", "") if alerts_data.get("Message") else ""
         advice = synthesize_actionable_advice(

@@ -90,6 +90,49 @@ class DataMallClient:
             params["ServiceNo"] = service_no
         return self._fetch("v3/BusArrival", params)
 
+    def get_bus_load(self, bus_stop_code: str, service_no: str) -> Dict[str, Any]:
+        """
+        Fetches the real-time Load for a specific bus service at a specific stop.
+        Returns a structured dict:
+          - load: raw code (SEA, SDA, LSD) or None
+          - status: human-readable string for UI display
+          - wheelchair_accessible: True if Feature == WAB
+          - bus_type: SD / DD / BD or None
+          - source: 'live' or 'fallback'
+        """
+        LOAD_LABELS = {
+            "SEA": "Seats Available (Load: SEA)",
+            "SDA": "Standing Only (Load: SDA)",
+            "LSD": "Limited Standing (Load: LSD)",
+        }
+        fallback = {
+            "load": None,
+            "status": "Load data unavailable",
+            "wheelchair_accessible": False,
+            "bus_type": None,
+            "source": "fallback",
+        }
+
+        data = self.get_bus_arrival(bus_stop_code, service_no)
+        services = data.get("Services", data.get("value", []))
+        if not services:
+            return fallback
+
+        svc = services[0]
+        # NextBus is the first arriving bus
+        next_bus = svc.get("NextBus", {})
+        load = next_bus.get("Load", "")
+        if load not in LOAD_LABELS:
+            return fallback
+
+        return {
+            "load": load,
+            "status": LOAD_LABELS[load],
+            "wheelchair_accessible": next_bus.get("Feature", "") == "WAB",
+            "bus_type": next_bus.get("Type"),
+            "source": "live",
+        }
+
     def get_facilities_maintenance(self) -> List[Dict[str, Any]]:
         """
         GET /v2/FacilitiesMaintenance
