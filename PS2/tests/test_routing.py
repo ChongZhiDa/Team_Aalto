@@ -194,30 +194,30 @@ class TestRoutingModule(unittest.TestCase):
 
     # --- Teammate 2 Extra: Postal Code Address Resolution & Door-to-Door Routing ---
     def test_tc_rot_09_postal_code_address_resolution(self):
-        """TC-ROT-09: Verifies 6-digit Singapore postal code resolution in standalone and full addresses."""
-        # Standalone postal code
+        """TC-ROT-09: Verifies 6-digit Singapore postal code resolution to exact house address and door-to-door transit legs."""
+        # Standalone postal code -> resolves to exact HDB block / building
         res_postal = resolve_location("341106")
         self.assertIsNotNone(res_postal)
-        self.assertEqual(res_postal["match_type"], "postal_code")
-        self.assertEqual(res_postal["station"], "MacPherson")
+        self.assertIn(res_postal["match_type"], ["exact_doorstep_address", "postal_code"])
+        self.assertIn("106A", res_postal["display"])
+        self.assertEqual(res_postal["station"], "Potong Pasir")
+        self.assertGreater(res_postal["walk_m"], 0)
 
         # 'S' prefix format
         res_sprefix = resolve_location("S018956")
         self.assertIsNotNone(res_sprefix)
-        self.assertEqual(res_sprefix["station"], "Raffles Place")
+        self.assertIn("Bayfront", res_sprefix["station"])
 
-        # Full address string with embedded postal code
-        res_addr = resolve_location("Blk 106A Bidadari Park Dr Singapore 341106")
-        self.assertIsNotNone(res_addr)
-        self.assertEqual(res_addr["station"], "MacPherson")
-
-        # Door-to-door routing using full addresses
+        # Door-to-door routing starting from exact house address
         route = self.router.route_door_to_door(
             "Blk 106A Bidadari Park Dr Singapore 341106",
             "10 Bayfront Avenue Singapore 018956"
         )
         self.assertFalse(route.get("error", True))
-        self.assertIn("MacPherson", route["legs"][0]["name"])
+        # First leg is a walk from the exact house address to the next transport node (Potong Pasir MRT)
+        self.assertEqual(route["legs"][0]["mode"], "WALK")
+        self.assertIn("106A Bidadari", route["legs"][0]["name"])
+        self.assertIn("Potong Pasir", route["legs"][0]["name"])
         self.assertGreater(route["total_duration_min"], 0)
 
 

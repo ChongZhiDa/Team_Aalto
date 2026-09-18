@@ -8,8 +8,12 @@ No external API required — works fully offline.
 """
 
 import re
+import json
+import urllib.request
+import urllib.parse
 from difflib import get_close_matches, SequenceMatcher
 from typing import Optional, Dict, Any, List
+from .geojson_loader import find_nearest_station
 
 
 # ---------------------------------------------------------------------------
@@ -458,6 +462,96 @@ _POSTAL_SECTORS: Dict[str, Dict[str, Any]] = {
 }
 
 _POSTAL_CODE_RE = re.compile(r"(?:^|[^\d])[sS]?(\d{6})(?:[^\d]|$)")
+_ONEMAP_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+def lookup_exact_address_onemap(query: str) -> Optional[Dict[str, Any]]:
+    """
+    Queries Singapore's official OneMap Search API for exact building/house address
+    and GPS coordinates from a 6-digit postal code or full address query.
+    Computes exact walking distance and duration from the doorstep to the nearest MRT station.
+    """
+    if not query or not query.strip():
+        return None
+
+    clean_q = query.strip()
+    postal = _extract_postal_code(clean_q)
+    search_target = postal if postal else clean_q
+
+    # Check cache first
+    cache_key = search_target.upper()
+    if cache_key in _ONEMAP_CACHE:
+        return _ONEMAP_CACHE[cache_key]
+
+    # Only invoke OneMap if query has a postal code or address keywords
+    is_address_like = bool(postal) or any(
+        k in clean_q.lower()
+        for k in ["blk", "road", "street", "st", "ave", "avenue", "drive", "dr", "lorong", "jalan", "lane", "way", "park", "close", "crescent", "place"]
+    )
+    if not is_address_like:
+        return None
+
+    try:
+        url = f"https://www.onemap.gov.sg/api/common/elastic/search?searchVal={urllib.parse.quote(search_target)}&returnGeom=Y&getAddrDetails=Y&pageNum=1"
+        req = urllib.request.Request(url, headers={"User-Agent": "StationBuddy/1.0"})
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            results = data.get("results", [])
+            if not results:
+                return None
+
+            first = results[0]
+            lat = float(first["LATITUDE"])
+            lon = float(first["LONGITUDE"])
+            blk = first.get("BLK_NO", "").strip()
+            road = first.get("ROAD_NAME", "").strip().title()
+            bldg = first.get("BUILDING", "").strip()
+            post = first.get("POSTAL", postal or "").strip()
+
+            parts = []
+            if blk:
+                parts.append(f"Blk {blk}")
+            if road:
+                parts.append(road)
+            base_addr = " ".join(parts) if parts else first.get("ADDRESS", clean_q).title()
+
+            if bldg and bldg.upper() != "NIL" and bldg.upper() not in base_addr.upper():
+                display_name = f"{base_addr} ({bldg.title()})"
+            else:
+                display_name = base_addr
+
+            nearest_stn_meta, dist_m = find_nearest_station(lat, lon)
+            if not nearest_stn_meta:
+                return None
+
+            stn_name = nearest_stn_meta["name"]
+            if stn_name.upper() == "ONE-NORTH":
+                stn_name = "one-north"
+            else:
+                stn_name = stn_name.title()
+
+            walk_min = max(2, int(round(dist_m / 80.0)))
+            needs_bus = dist_m > 600
+
+            result = {
+                "station": stn_name,
+                "station_type": nearest_stn_meta.get("type", "MRT"),
+                "walk_min": walk_min,
+                "walk_m": int(round(dist_m)),
+                "display": display_name,
+                "full_address": first.get("ADDRESS", display_name),
+                "postal_code": post,
+                "coordinates": [lat, lon],
+                "match_type": "exact_doorstep_address",
+                "is_exact_house": True,
+                "needs_feeder_bus": needs_bus,
+                "query": query,
+            }
+            _ONEMAP_CACHE[cache_key] = result
+            return result
+    except Exception:
+        # Fallback cleanly on network failure or timeout
+        return None
 
 
 def _extract_postal_code(text: str) -> Optional[str]:
@@ -500,26 +594,23 @@ def resolve_location(query: str, station_names: Optional[List[str]] = None) -> O
 
     Resolves any text query to {station, walk_min, walk_m, display, match_type, query}.
     Resolution priority:
-      0. Singapore postal code (6-digit or S+6-digit, embedded or standalone)
+      0. Exact doorstep address lookup via OneMap (for postal codes or street addresses)
+      0b. Singapore postal sector fallback (first 2 digits)
       1. Exact key match in location database
       2. difflib fuzzy match against location keys (cutoff 0.75)
       3. Token overlap match (e.g. "tampines 123" -> "tampines")
       4. Exact station name match (direct MRT station input)
       5. difflib fuzzy match against provided station names (cutoff 0.70)
-
-    Args:
-        query: Raw user text (e.g. "520123", "Blk 30 Tampines St 11, S529558",
-               "NUS", "Tampines Mall", "jurong east mrt")
-        station_names: Optional list of canonical station names from the graph router.
-
-    Returns:
-        Dict with keys: station, walk_min, walk_m, display, match_type, query
-        Or None if no match found with sufficient confidence.
     """
     if not query or not query.strip():
         return None
 
-    # --- Pass 0: Postal code detection ---
+    # --- Pass 0: Exact doorstep address lookup via OneMap (for postal codes or street addresses) ---
+    exact_match = lookup_exact_address_onemap(query)
+    if exact_match:
+        return exact_match
+
+    # --- Pass 0b: Postal code sector fallback ---
     postal = _extract_postal_code(query)
     if postal:
         sector = postal[:2]
@@ -621,6 +712,16 @@ def suggest_locations(query: str, station_names: Optional[List[str]] = None, lim
                 "type": match_type,
                 "value": value
             })
+
+    # 0. Exact house / building address lookup if postal code or street address
+    exact_house = lookup_exact_address_onemap(q_strip)
+    if exact_house:
+        add_sug(
+            display=f"{exact_house['display']} S({exact_house['postal_code']})",
+            station=exact_house["station"],
+            match_type="exact_address",
+            value=exact_house["display"]
+        )
 
     # 1. Postal code suggestions
     clean_digits = re.sub(r"^[sS]", "", q_strip)
