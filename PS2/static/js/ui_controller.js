@@ -125,6 +125,32 @@ export class UIController {
       }
     });
 
+    // Real-time postal detection hint
+    const updatePostalHint = () => {
+      const origVal = originInput?.value || '';
+      const destVal = destInput?.value || '';
+      const origPostal = origVal.match(/(?:^|[^\d])[sS]?(\d{6})(?:[^\d]|$)/);
+      const destPostal = destVal.match(/(?:^|[^\d])[sS]?(\d{6})(?:[^\d]|$)/);
+      const hintBar = document.getElementById('location-hint-bar');
+      const hintText = document.getElementById('location-hint-text');
+
+      if (hintBar && hintText) {
+        if (origPostal || destPostal) {
+          hintBar.classList.remove('hidden');
+          const parts = [];
+          if (origPostal) parts.push(`Origin: S${origPostal[1]}`);
+          if (destPostal) parts.push(`Dest: S${destPostal[1]}`);
+          hintText.innerHTML = `<i class="fa-solid fa-location-crosshairs text-blue-400 animate-pulse"></i> <span>Postal Geocoding: <strong>${parts.join(' • ')}</strong></span>`;
+        } else {
+          hintBar.classList.add('hidden');
+        }
+      }
+    };
+
+    originInput?.addEventListener('input', updatePostalHint);
+    destInput?.addEventListener('input', updatePostalHint);
+    updatePostalHint();
+
     // Recenter map button
     document.getElementById('btn-recenter')?.addEventListener('click', () => {
       if (this.handlers.onRecenter) this.handlers.onRecenter();
@@ -158,11 +184,18 @@ export class UIController {
   updateTopBar(data) {
     const badge = document.getElementById('source-badge');
     if (!badge) return;
-    badge.textContent = data.source_badge || 'Live';
-    if (data.source_badge && data.source_badge.toLowerCase().includes('disruption')) {
-      badge.className = 'px-2 py-0.5 text-[10px] font-semibold bg-rose-950 text-rose-400 border border-rose-800 rounded-full';
+    const badgeText = data.source_badge || 'Live';
+    const lower = badgeText.toLowerCase();
+
+    if (lower.includes('live') || lower.includes('datamall') || lower.includes('weather')) {
+      badge.className = 'px-2.5 py-0.5 text-[10px] font-semibold bg-emerald-950 text-emerald-300 border border-emerald-500 rounded-full flex items-center gap-1.5 shadow-[0_0_8px_rgba(16,185,129,0.3)]';
+      badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> ${data.source_badge || 'LTA DataMall & Weather (Live)'}`;
+    } else if (lower.includes('disruption') || lower.includes('fault')) {
+      badge.className = 'px-2.5 py-0.5 text-[10px] font-semibold bg-rose-950 text-rose-300 border border-rose-500 rounded-full flex items-center gap-1.5 shadow-[0_0_8px_rgba(244,63,94,0.3)]';
+      badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-400 animate-bounce"></span> ${data.source_badge || 'Disruption Mode'}`;
     } else {
-      badge.className = 'px-2 py-0.5 text-[10px] font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800 rounded-full';
+      badge.className = 'px-2.5 py-0.5 text-[10px] font-semibold bg-indigo-950 text-indigo-300 border border-indigo-700 rounded-full flex items-center gap-1.5';
+      badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span> ${data.source_badge || 'Simulation Mode'}`;
     }
   }
 
@@ -219,6 +252,27 @@ export class UIController {
     } else {
       element.className = 'px-1.5 py-0.2 text-[9px] font-bold rounded bg-amber-950 text-amber-300 border border-amber-800';
       element.textContent = 'CROWD: MOD';
+    }
+  }
+
+  renderBusCrowdBadge(element, bus) {
+    if (!element) return;
+    const cl = (bus.crowd_level || '').toLowerCase();
+    const statusText = (bus.status || '').toUpperCase();
+    const isLive = bus.bus_load_source === 'live';
+
+    if (cl === 'l' || statusText.includes('SEA') || statusText.includes('SEATS') || statusText.includes('SEAT')) {
+      // SEA / l -> 🟢 Green pill: "Seats Available"
+      element.className = 'px-2 py-0.5 text-[9px] font-bold rounded-full bg-emerald-950 text-emerald-300 border border-emerald-600 flex items-center gap-1 shadow-sm';
+      element.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Seats Available${isLive ? ' (Live)' : ''}`;
+    } else if (cl === 'h' || statusText.includes('LSD') || statusText.includes('LIMITED') || statusText.includes('CROWDED')) {
+      // LSD / h -> 🔴 Red pill: "Crowded (Limited Standing)"
+      element.className = 'px-2 py-0.5 text-[9px] font-bold rounded-full bg-rose-950 text-rose-300 border border-rose-600 flex items-center gap-1 shadow-sm';
+      element.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse"></span> Crowded (Limited Standing)${isLive ? ' (Live)' : ''}`;
+    } else {
+      // SDA / m -> 🟡 Yellow pill: "Standing Only"
+      element.className = 'px-2 py-0.5 text-[9px] font-bold rounded-full bg-amber-950 text-amber-300 border border-amber-600 flex items-center gap-1 shadow-sm';
+      element.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Standing Only${isLive ? ' (Live)' : ''}`;
     }
   }
 
@@ -304,13 +358,15 @@ export class UIController {
         busShelterChip.textContent = `☂️ ${bus.sheltered_percent}% SHELTER`;
       }
 
+      // Color-coded crowd badge: SEA/l -> Green, SDA/m -> Yellow, LSD/h -> Red
+      this.renderBusCrowdBadge(busCrowd, bus);
+
       if (busDelay) {
-        busDelay.className = 'text-[10px] text-slate-400';
-        busDelay.textContent = 'Guaranteed Seat';
-      }
-      if (busCrowd) {
-        busCrowd.className = 'px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800';
-        busCrowd.textContent = 'SEATS AVAIL';
+        const isLive = bus.bus_load_source === 'live';
+        busDelay.className = isLive ? 'text-[10px] text-emerald-400 font-semibold flex items-center justify-end gap-1' : 'text-[10px] text-slate-400';
+        busDelay.innerHTML = isLive
+          ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Live LTA Load`
+          : (bus.status || 'Guaranteed Seat');
       }
     }
 
@@ -605,6 +661,13 @@ export class UIController {
   extractStationName(inputStr) {
     if (!inputStr) return '';
     const trimmed = inputStr.trim();
+
+    // 1. Check for 6-digit Singapore postal code (e.g. "529538", "S529538", or embedded in address)
+    const postalMatch = trimmed.match(/(?:^|[^\d])[sS]?(\d{6})(?:[^\d]|$)/);
+    if (postalMatch) {
+      return postalMatch[1];
+    }
+
     const knownStations = [
       "Marina South Pier", "Gardens by the Bay", "Orchard Boulevard", "Woodlands North", 
       "Woodlands South", "Botanic Gardens", "King Albert Park", "Bukit Panjang", 

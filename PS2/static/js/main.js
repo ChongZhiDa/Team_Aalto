@@ -12,6 +12,8 @@ let currentData = null;
 let currentArbitraryRoute = null;
 let activeRouteId = 'primary_ewl';
 let currentArrivalTime = '08:45 AM';
+let currentOrigin = 'Blk 230 Tampines St 21 (Home)';
+let currentDest = 'One Raffles Place, CBD (Office)';
 let mapController;
 let uiController;
 
@@ -45,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     onArrivalChange: async (newTime) => {
       currentArrivalTime = newTime;
-      await loadCommuteStatus(currentArrivalTime);
+      await loadCommuteStatus(currentArrivalTime, currentOrigin, currentDest);
     },
     onLocationChange: async (origin, dest) => {
       await handleLocationChange(origin, dest);
@@ -61,12 +63,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // 4. Initial Data Load
-  loadCommuteStatus(currentArrivalTime);
+  loadCommuteStatus(currentArrivalTime, currentOrigin, currentDest);
 });
 
-async function loadCommuteStatus(arrivalTime = '08:45 AM') {
+async function loadCommuteStatus(arrivalTime = currentArrivalTime, origin = currentOrigin, dest = currentDest) {
   try {
-    const url = `/api/status?arrival_time=${encodeURIComponent(arrivalTime)}`;
+    let url = `/api/status?arrival_time=${encodeURIComponent(arrivalTime)}`;
+    if (origin) url += `&origin=${encodeURIComponent(origin)}`;
+    if (dest) url += `&destination=${encodeURIComponent(dest)}`;
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
@@ -155,24 +159,30 @@ async function updateSettings(settings) {
 }
 
 async function handleLocationChange(origin, dest) {
-  // 1. Update baseline settings & commuter engine profile
+  currentOrigin = origin;
+  currentDest = dest;
+
+  // 1. Recalculate commute status via GET /api/status?origin=...&destination=...
+  await loadCommuteStatus(currentArrivalTime, origin, dest);
+
+  // 2. Also update baseline settings in backend
   await updateSettings({ origin, destination: dest });
 
-  // 2. Query T2's live Singapore MRT graph router endpoint (/api/route)
+  // 3. Query Singapore MRT door-to-door graph router endpoint (/api/route)
   await queryGraphRoute(origin, dest);
 }
 
 async function queryGraphRoute(origin, dest) {
-  const origStation = uiController.extractStationName(origin);
-  const destStation = uiController.extractStationName(dest);
-  if (!origStation || !destStation) return;
+  const origQuery = uiController.extractStationName(origin) || origin;
+  const destQuery = uiController.extractStationName(dest) || dest;
+  if (!origQuery || !destQuery) return;
 
   try {
     const isRain = currentData?.weather?.rain_alert?.is_raining ? '1' : '0';
-    const url = `/api/route?origin=${encodeURIComponent(origStation)}&destination=${encodeURIComponent(destStation)}&rain=${isRain}`;
+    const url = `/api/route?origin=${encodeURIComponent(origQuery)}&destination=${encodeURIComponent(destQuery)}&rain=${isRain}`;
     const resp = await fetch(url);
     if (!resp.ok) {
-      console.warn(`No graph path found between ${origStation} and ${destStation}: HTTP ${resp.status}`);
+      console.warn(`No graph path found between ${origQuery} and ${destQuery}: HTTP ${resp.status}`);
       uiController.hideArbitraryRouteCard();
       return;
     }

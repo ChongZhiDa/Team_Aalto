@@ -87,7 +87,7 @@
               type="text" 
               list="mrt-stations-datalist"
               value="Blk 230 Tampines St 21 (Home)" 
-              placeholder="Enter starting station or address..." 
+              placeholder="Enter 6-digit postal (e.g. 529538), address, or station..." 
               class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
             />
           </div>
@@ -98,7 +98,7 @@
               type="text" 
               list="mrt-stations-datalist"
               value="One Raffles Place, CBD (Office)" 
-              placeholder="Enter destination station or address..." 
+              placeholder="Enter 6-digit postal (e.g. 048624), address, or station..." 
               class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
             />
           </div>
@@ -115,8 +115,31 @@
         </div>
       </div>
 
-      <!-- Datalist for fast Singapore MRT station suggestions -->
+      <!-- Real-Time Geocoding & Postal Detection Status Bar -->
+      <div id="location-hint-bar" class="hidden flex items-center justify-between text-[10px] text-blue-300 px-2 py-0.5 bg-blue-950/60 rounded border border-blue-800/60 transition">
+        <span id="location-hint-text" class="flex items-center gap-1"><i class="fa-solid fa-location-crosshairs text-blue-400"></i> Postal Geocoding Ready</span>
+        <span class="text-[9px] text-slate-400 font-mono">OneMap / LTA Geocoded</span>
+      </div>
+
+      <!-- Datalist for fast Singapore MRT station & 6-digit postal code suggestions -->
       <datalist id="mrt-stations-datalist">
+        <!-- Singapore Postal Codes (6-Digit) & Key Landmarks -->
+        <option value="529538 (Tampines MRT - EW2/DT32)"></option>
+        <option value="048624 (One Raffles Place - EW14/NS26)"></option>
+        <option value="520230 (Blk 230 Tampines St 21)"></option>
+        <option value="069042 (Cross Street Exchange / Telok Ayer)"></option>
+        <option value="138607 (Fusionopolis, one-north)"></option>
+        <option value="609606 (Westgate / Jurong East)"></option>
+        <option value="579837 (Junction 8 / Bishan)"></option>
+        <option value="188021 (Bugis Junction)"></option>
+        <option value="039393 (Suntec City / Promenade)"></option>
+        <option value="049318 (Fullerton Square)"></option>
+        <option value="529536 (Tampines Mall)"></option>
+        <option value="119077 (National University of Singapore - NUS)"></option>
+        <option value="639798 (Nanyang Technological University - NTU)"></option>
+        <option value="048582 (Marina Bay Financial Centre)"></option>
+        <option value="738343 (Woodlands Civic Centre)"></option>
+        <!-- Canonical MRT Stations -->
         <option value="Tampines"></option>
         <option value="Raffles Place"></option>
         <option value="Jurong East"></option>
