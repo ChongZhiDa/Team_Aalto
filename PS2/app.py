@@ -24,8 +24,9 @@ _router = MultimodalRouter()
 @app.route("/api/route", methods=["GET"])
 def get_arbitrary_route():
     """
-    Calls T2's graph-based pathfinder for arbitrary origin/destination pairs.
-    Query params: origin=<station name>&destination=<station name>&rain=<0|1>
+    Fuzzy door-to-door routing for any origin/destination text.
+    Resolves landmarks, malls, hospitals, MRT station names (with/without 'MRT') etc.
+    Query params: origin=<text>&destination=<text>&rain=<0|1>
     """
     origin = (request.args.get("origin") or "").strip()
     dest = (request.args.get("destination") or "").strip()
@@ -34,9 +35,9 @@ def get_arbitrary_route():
     if not origin or not dest:
         return jsonify({"error": "origin and destination are required"}), 400
 
-    result = _router.route_arbitrary_commute(origin, dest, rain_active=rain_active)
-    if result is None:
-        return jsonify({"error": f"No route found between '{origin}' and '{dest}'"}), 404
+    result = _router.route_door_to_door(origin, dest, rain_active=rain_active)
+    if result.get("error"):
+        return jsonify(result), 404
 
     return jsonify(result)
 
