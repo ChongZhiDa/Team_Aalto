@@ -305,3 +305,131 @@ class MultimodalRouter:
             "sheltered_percent": 80,
             "legs": legs
         }
+
+    def compute_arjun_journey(self, rain_active: bool = False, delay_minutes: int = 0) -> Dict[str, Any]:
+        """
+        Arjun's persona journey: Punggol to one-north (multimodal cycling + transit).
+        Optimizes for comfort, cycling path access, and crowd avoidance.
+        """
+        if rain_active:
+            # When raining, cycling is replaced by sheltered LRT / walk to avoid getting soaked
+            first_leg = {
+                "mode": "WALK",
+                "name": "Sheltered walk to Coral Edge LRT (PE3) (Rain Mode)",
+                "duration": "7 min",
+                "distance": "400m",
+                "sheltered_percent": 90
+            }
+            first_leg_min = 7
+            weather_note = "Rain Shield: Swapped open cycling to sheltered LRT linkway"
+        else:
+            first_leg = {
+                "mode": "CYCLE",
+                "name": "Cycle via Punggol Park Connector (CyclingPath) to Punggol MRT",
+                "duration": "4 min",
+                "distance": "950m",
+                "sheltered_percent": 30
+            }
+            first_leg_min = 4
+            weather_note = "Good Weather: 950m cycling leg on dedicated park connector"
+
+        # Train: NEL Punggol -> Serangoon (14m) + Transfer (4m) + CCL Serangoon -> one-north (18m)
+        train_min = 36 + delay_minutes
+        last_leg_min = 4
+        total_time = first_leg_min + train_min + last_leg_min
+
+        arr_hour = 8 + (total_time) // 60
+        arr_min = (total_time) % 60
+
+        return {
+            "id": "arjun_multimodal",
+            "persona": "Arjun (Flexible, Multimodal Cyclist)",
+            "title": "Cycle + NEL/CCL Train to one-north",
+            "transit_type": "Cycle + Train",
+            "total_duration_min": total_time,
+            "estimated_arrival": f"{arr_hour:02d}:{arr_min:02d} AM",
+            "delay_minutes": delay_minutes,
+            "status": weather_note,
+            "crowd_level": "m",
+            "disrupted_stations": [],
+            "is_recommended": True,
+            "cycling_enabled": not rain_active,
+            "bicycle_parking_available": True,
+            "legs": [
+                first_leg,
+                {"mode": "TRAIN", "name": "NEL: Punggol (NE17) to Serangoon (NE12)", "duration": "14 min", "stops": 6},
+                {"mode": "WALK", "name": "Platform Transfer at Serangoon (NEL -> CCL)", "duration": "4 min", "distance": "160m", "sheltered_percent": 100},
+                {"mode": "TRAIN", "name": "CCL: Serangoon (CC13) to one-north (CC23)", "duration": "18 min", "stops": 8},
+                {"mode": "WALK", "name": "Walk from one-north MRT Exit A to Biopolis Desk", "duration": f"{last_leg_min} min", "distance": "350m", "sheltered_percent": 95},
+            ]
+        }
+
+    def compute_mdm_lim_journey(
+        self,
+        rain_active: bool = False,
+        lift_outages: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Mdm Lim's persona journey: Bedok to SGH Outram Park (Accessibility & Step-Free).
+        Slow walking speed, lift maintenance detection, and sheltered walkway priority.
+        """
+        outages = [o.upper() for o in (lift_outages or [])]
+        outram_lift_down = any("OUTRAM" in o for o in outages)
+
+        # Walking at 0.85 m/s (slower speed)
+        walk_home_min = 9 + (2 if rain_active else 0)
+        train_min = 28  # Bedok to Outram Park direct (11 stops)
+        walk_sgh_min = 6 + (4 if outram_lift_down else 0)
+
+        total_time = walk_home_min + train_min + walk_sgh_min
+        arr_hour = 8 + (total_time) // 60
+        arr_min = (total_time) % 60
+
+        if outram_lift_down:
+            accessibility_status = "Lift out of service at Outram Park Exit F - rerouted to ramp at Exit A (+4 min)"
+            exit_name = "Walk via Exit A Ramp (Step-free detour) to SGH Medical Centre"
+        else:
+            accessibility_status = "100% Step-free route: Lifts active at Bedok & Outram Park"
+            exit_name = "Walk via Exit F Lift Connector directly into SGH Medical Centre"
+
+        return {
+            "id": "mdm_lim_accessibility",
+            "persona": "Mdm Lim (Accessibility-Constrained)",
+            "title": "East-West Line (Step-Free Direct to SGH)",
+            "transit_type": "Train (Step-Free)",
+            "line": "EWL",
+            "total_duration_min": total_time,
+            "estimated_arrival": f"{arr_hour:02d}:{arr_min:02d} AM",
+            "delay_minutes": 0,
+            "status": accessibility_status,
+            "crowd_level": "l",
+            "step_free_certified": True,
+            "has_lift_alert": outram_lift_down,
+            "is_recommended": True,
+            "sheltered_percent": 95,
+            "legs": [
+                {
+                    "mode": "WALK",
+                    "name": "Slow walk via covered linkway to Bedok MRT Lift Entrance",
+                    "duration": f"{walk_home_min} min",
+                    "distance": "450m",
+                    "sheltered_percent": 95,
+                    "step_free": True
+                },
+                {
+                    "mode": "TRAIN",
+                    "name": "EWL: Bedok (EW5) to Outram Park (EW16) [Direct, No Transfers]",
+                    "duration": "28 min",
+                    "stops": 11,
+                    "step_free": True
+                },
+                {
+                    "mode": "WALK",
+                    "name": exit_name,
+                    "duration": f"{walk_sgh_min} min",
+                    "distance": "250m",
+                    "sheltered_percent": 100,
+                    "step_free": True
+                },
+            ]
+        }

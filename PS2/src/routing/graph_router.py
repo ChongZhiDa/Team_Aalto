@@ -290,7 +290,8 @@ class StationGraphRouter:
         origin: str,
         destination: str,
         disrupted_line: Optional[str] = None,
-        avoid_stations: Optional[List[str]] = None
+        avoid_stations: Optional[List[str]] = None,
+        avoid_transfers: Optional[List[Tuple[str, str, str]]] = None
     ) -> Optional[Dict[str, Any]]:
         """
         Dijkstra shortest-path algorithm considering hop transit time
@@ -299,6 +300,10 @@ class StationGraphRouter:
         norm_orig = self._normalize(origin)
         norm_dest = self._normalize(destination)
         avoid_set = set(self._normalize(s) for s in (avoid_stations or []))
+        avoid_tx_set = set(
+            (tx[0].upper(), tx[1].upper(), self._normalize(tx[2]))
+            for tx in (avoid_transfers or [])
+        )
 
         if norm_orig not in self.adj or norm_dest not in self.adj:
             return None
@@ -362,6 +367,8 @@ class StationGraphRouter:
 
                 # Transfer occurs when changing lines
                 if current_line and current_line != edge_line:
+                    if (current_line, edge_line, current_stn) in avoid_tx_set:
+                        continue
                     transfer_penalty = get_transfer_penalty(current_line, edge_line, current_stn)
 
                 new_cost = cost + hop_time + transfer_penalty
@@ -376,3 +383,60 @@ class StationGraphRouter:
                 heapq.heappush(pq, (new_cost, counter, next_stn, edge_line, new_segments))
 
         return None
+
+    def find_alternative_paths(
+        self,
+        origin: str,
+        destination: str,
+        max_paths: int = 2,
+        step_free: bool = False,
+        disrupted_line: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Finds diverse alternative paths (e.g. fastest path vs least-transfers / alternate-transfer path).
+        If step_free=True, applies additional lift wait buffers at transfers.
+        """
+        paths: List[Dict[str, Any]] = []
+
+        # 1. Primary path
+        primary = self.find_path(origin, destination, disrupted_line=disrupted_line)
+        if not primary:
+            return paths
+
+        if step_free and primary["transfers"] > 0:
+            primary["total_train_min"] += round(primary["transfers"] * 2.5, 1)
+            primary["step_free_certified"] = True
+
+        paths.append(primary)
+        if max_paths <= 1 or not primary["lines"]:
+            return paths
+
+        # 2. Try alternate line from origin if origin has multiple lines
+        alt_path = None
+        if len(self.station_lines[self._normalize(origin)]) > 1:
+            primary_main_line = primary["lines"][0]
+            alt_path = self.find_path(origin, destination, disrupted_line=primary_main_line)
+
+        # 3. If no alternate line or origin is single-line, avoid the primary transfer point
+        if not alt_path and primary["transfers"] > 0:
+            first_tx = None
+            for seg in primary["segments"]:
+                if seg.get("transfer_penalty_applied", 0) > 0:
+                    first_tx = (seg["line"], primary["lines"][1] if len(primary["lines"]) > 1 else seg["line"], seg["from_station"])
+                    # Previous line was seg before
+                    for prev_seg in primary["segments"]:
+                        if prev_seg["to_station"] == seg["from_station"]:
+                            first_tx = (prev_seg["line"], seg["line"], seg["from_station"])
+                            break
+                    break
+
+            if first_tx:
+                alt_path = self.find_path(origin, destination, avoid_transfers=[first_tx])
+
+        if alt_path and alt_path["segments"] != primary["segments"]:
+            if step_free and alt_path["transfers"] > 0:
+                alt_path["total_train_min"] += round(alt_path["transfers"] * 2.5, 1)
+                alt_path["step_free_certified"] = True
+            paths.append(alt_path)
+
+        return paths
