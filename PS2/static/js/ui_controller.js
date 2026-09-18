@@ -5,7 +5,6 @@
  * Owned by: Teammate A (Frontend & Mobile UX)
  */
 
-export class UIController {
   constructor(handlers = {}) {
     this.handlers = handlers; // onSelectRoute, onSwitchScenario, onThresholdChange, onArrivalChange, onLocationChange, onRecenter
     this.defaultRouteCardsHtml = document.getElementById('route-cards-list')?.innerHTML || '';
@@ -28,7 +27,7 @@ export class UIController {
       if (this.handlers.onSelectRoute) this.handlers.onSelectRoute('bypass_dtl');
     });
 
-    // Transit route cards with collapsible step expansion
+    // Transit route cards with collapsible step expansion (using delegation on container)
     const toggleRoute = (routeId, legsId, chevronId) => {
       if (this.currentActiveRouteId === routeId) {
         const legs = document.getElementById(legsId);
@@ -43,17 +42,18 @@ export class UIController {
       }
     };
 
-    document.getElementById('card-primary-ewl')?.addEventListener('click', () => {
-      toggleRoute('primary_ewl', 'ewl-legs-container', 'ewl-chevron');
-    });
-    document.getElementById('card-bypass-dtl')?.addEventListener('click', () => {
-      toggleRoute('bypass_dtl', 'dtl-legs-container', 'dtl-chevron');
-    });
-    document.getElementById('card-bypass-bus10e')?.addEventListener('click', () => {
-      toggleRoute('bypass_bus10e', 'bus-legs-container', 'bus-chevron');
-    });
-    document.getElementById('card-arbitrary-route')?.addEventListener('click', () => {
-      toggleRoute('arbitrary_route', 'arbitrary-legs-container', 'arbitrary-chevron');
+    document.getElementById('route-cards-list')?.addEventListener('click', (e) => {
+      const card = e.target.closest('.route-card');
+      if (!card) return;
+      if (card.id === 'card-primary-ewl') {
+        toggleRoute('primary_ewl', 'ewl-legs-container', 'ewl-chevron');
+      } else if (card.id === 'card-bypass-dtl') {
+        toggleRoute('bypass_dtl', 'dtl-legs-container', 'dtl-chevron');
+      } else if (card.id === 'card-bypass-bus10e') {
+        toggleRoute('bypass_bus10e', 'bus-legs-container', 'bus-chevron');
+      } else if (card.id === 'card-arbitrary-route') {
+        toggleRoute('arbitrary_route', 'arbitrary-legs-container', 'arbitrary-chevron');
+      }
     });
 
     // Arrival timing input (editable down to the minute)
@@ -839,35 +839,6 @@ export class UIController {
       } else if (busCard) {
         busCard.classList.add('hidden');
       }
-    }
-
-    // Custom route step cards for First Mile & Last Mile breakdown
-    if (data.is_custom && ewl.legs && ewl.legs.length > 0) {
-      const card2Title = document.querySelector('#card-bypass-dtl .font-semibold');
-      const card2Meta = document.querySelector('#card-bypass-dtl p');
-      const card2Time = document.querySelector('#card-bypass-dtl .font-bold.text-sm');
-      const card2Tag = document.querySelector('#card-bypass-dtl .text-\\[10px\\]');
-      const card2Chip = document.querySelector('#card-bypass-dtl .rounded');
-      
-      const firstLeg = ewl.legs[0];
-      if (card2Title) card2Title.textContent = `Step 1: ${firstLeg.mode}`;
-      if (card2Meta) card2Meta.textContent = `${firstLeg.name} (${firstLeg.distance || ''})`;
-      if (card2Time) card2Time.textContent = firstLeg.duration;
-      if (card2Tag) card2Tag.textContent = firstLeg.sheltered_percent ? `${firstLeg.sheltered_percent}% sheltered` : 'Doorstep';
-      if (card2Chip) card2Chip.textContent = 'FIRST MILE';
-
-      const card3Title = document.querySelector('#card-bypass-bus10e .font-semibold');
-      const card3Meta = document.querySelector('#card-bypass-bus10e p');
-      const card3Time = document.querySelector('#card-bypass-bus10e .font-bold.text-sm');
-      const card3Tag = document.querySelector('#card-bypass-bus10e .text-\\[10px\\]');
-      const card3Chip = document.querySelector('#card-bypass-bus10e .rounded');
-      
-      const lastLeg = ewl.legs[ewl.legs.length - 1];
-      if (card3Title) card3Title.textContent = `Final Step: ${lastLeg.mode}`;
-      if (card3Meta) card3Meta.textContent = `${lastLeg.name} (${lastLeg.distance || ''})`;
-      if (card3Time) card3Time.textContent = lastLeg.duration;
-      if (card3Tag) card3Tag.textContent = 'Destination Doorstep';
-      if (card3Chip) card3Chip.textContent = 'LAST MILE';
     }
 
     this.highlightActiveCard(activeRouteId);

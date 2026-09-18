@@ -66,11 +66,22 @@ def index():
     return render_template("index.html")
 
 
+LINE_COLORS = {
+    "EWL": "#10b981",  # Emerald
+    "DTL": "#2563eb",  # Blue
+    "NEL": "#8b5cf6",  # Purple
+    "CCL": "#f59e0b",  # Amber / Orange
+    "NSL": "#ef4444",  # Red
+    "TEL": "#92400e",  # Brown
+    "MRT": "#2563eb",
+}
+
+
 def _enrich_evaluation_with_custom_route(evaluation, origin, dest, rain_active=False):
     """
     If origin or destination are customized (not the default Tampines/Raffles Place corridor),
     replaces Rachel's hardcoded corridor with the door-to-door calculated route and
-    generates custom map layers for Leaflet rendering.
+    generates custom map layers for Leaflet rendering with real pedestrian footpaths.
     """
     if not origin or not dest:
         return evaluation
@@ -105,7 +116,7 @@ def _enrich_evaluation_with_custom_route(evaluation, origin, dest, rain_active=F
     if not dest_coords and last_stn_coord:
         dest_coords = last_stn_coord
 
-    # Real turn-by-turn pedestrian walking footpaths
+    # Real turn-by-turn pedestrian walking footpaths avoiding buildings
     walking_legs = {}
     if orig_coords and first_stn_coord:
         origin_path, origin_dist = get_pedestrian_path(orig_coords, first_stn_coord)
