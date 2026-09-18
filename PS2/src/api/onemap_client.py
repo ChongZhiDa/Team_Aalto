@@ -12,6 +12,8 @@ import os
 import math
 import requests
 from typing import Dict, Any, List, Optional, Union, Tuple
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from .cache_manager import SimpleCache
 
 ONEMAP_BASE_URL = "https://www.onemap.gov.sg/api"
@@ -25,7 +27,19 @@ class OneMapClient:
         password: Optional[str] = None
     ):
         self.token = token or os.getenv("ONEMAP_TOKEN", "")
-        self.cache = SimpleCache(default_ttl_seconds=300)
+        self.cache = SimpleCache(default_ttl_seconds=300, max_size=1000)
+
+        # Persistent connection pool for fast geocoding and routing
+        self.session = requests.Session()
+        retries = Retry(
+            total=2,
+            backoff_factor=0.2,
+            status_forcelist=[500, 502, 503, 504],
+            raise_on_status=False
+        )
+        adapter = HTTPAdapter(pool_connections=5, pool_maxsize=10, max_retries=retries)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
 
         # If email/password provided or found in environment, authenticate automatically
         user_email = email or os.getenv("ONEMAP_EMAIL", "")
@@ -49,7 +63,7 @@ class OneMapClient:
         url = f"{ONEMAP_BASE_URL}/auth/post/getToken"
         payload = {"email": email, "password": password}
         try:
-            resp = requests.post(url, json=payload, timeout=5)
+            resp = self.session.post(url, json=payload, timeout=5)
             if resp.status_code == 200:
                 data = resp.json()
                 token = data.get("access_token")
@@ -64,6 +78,7 @@ class OneMapClient:
         """
         Geocodes a search query or postal code (e.g. '529538', 'Tampines St 21', 'One Raffles Place').
         GET /common/elastic/search
+        Cached for 3600 seconds (1 hr) as Singapore building / postal locations are static.
         """
         if not query or not query.strip():
             return {"found": 0, "results": []}
@@ -82,14 +97,16 @@ class OneMapClient:
             "pageNum": page_num
         }
         try:
-            resp = requests.get(url, headers=self._get_headers(), params=params, timeout=5)
+            resp = self.session.get(url, headers=self._get_headers(), params=params, timeout=5)
             if resp.status_code == 200:
                 data = resp.json()
-                self.cache.set(cache_key, data)
+                # 1 hour TTL for static location searches
+                self.cache.set(cache_key, data, ttl=3600)
                 return data
         except Exception:
             pass
         return {"found": 0, "results": []}
+
 
     def autocomplete(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """
@@ -205,7 +222,7 @@ class OneMapClient:
                     params["time"] = time_str
 
             try:
-                resp = requests.get(url, headers=self._get_headers(), params=params, timeout=6)
+                resp = self.session.get(url, headers=self._get_headers(), params=params, timeout=6)
                 if resp.status_code == 200:
                     data = resp.json()
                     result = {
@@ -251,4 +268,9 @@ class OneMapClient:
         }
         self.cache.set(cache_key, fallback_result)
         return fallback_result
+
+    def close(self) -> None:
+        """Closes the underlying HTTP session."""
+        self.session.close()
+
 
