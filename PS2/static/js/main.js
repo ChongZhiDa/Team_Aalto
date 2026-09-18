@@ -9,6 +9,7 @@ import { UIController } from './ui_controller.js';
 import { offlineCache } from './offline_cache.js';
 
 let currentData = null;
+let currentArbitraryRoute = null;
 let activeRouteId = 'primary_ewl';
 let currentArrivalTime = '08:45 AM';
 let mapController;
@@ -24,7 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
     onSelectRoute: (routeId) => {
       activeRouteId = routeId;
       uiController.highlightActiveCard(activeRouteId);
-      if (currentData) {
+      if (routeId === 'arbitrary_route' && currentArbitraryRoute) {
+        mapController.renderArbitraryRoute(currentArbitraryRoute);
+      } else if (currentData) {
         mapController.renderLayers(currentData, activeRouteId);
       }
     },
@@ -45,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
       await loadCommuteStatus(currentArrivalTime);
     },
     onLocationChange: async (origin, dest) => {
-      await updateSettings({ origin, destination: dest });
+      await handleLocationChange(origin, dest);
     },
     onRecenter: () => {
       mapController.panToCenter();
@@ -148,5 +151,41 @@ async function updateSettings(settings) {
     }
   } catch (err) {
     console.error('Settings update failed:', err);
+  }
+}
+
+async function handleLocationChange(origin, dest) {
+  // 1. Update baseline settings & commuter engine profile
+  await updateSettings({ origin, destination: dest });
+
+  // 2. Query T2's live Singapore MRT graph router endpoint (/api/route)
+  await queryGraphRoute(origin, dest);
+}
+
+async function queryGraphRoute(origin, dest) {
+  const origStation = uiController.extractStationName(origin);
+  const destStation = uiController.extractStationName(dest);
+  if (!origStation || !destStation) return;
+
+  try {
+    const isRain = currentData?.weather?.rain_alert?.is_raining ? '1' : '0';
+    const url = `/api/route?origin=${encodeURIComponent(origStation)}&destination=${encodeURIComponent(destStation)}&rain=${isRain}`;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      console.warn(`No graph path found between ${origStation} and ${destStation}: HTTP ${resp.status}`);
+      uiController.hideArbitraryRouteCard();
+      return;
+    }
+    const routeData = await resp.json();
+    if (routeData && routeData.legs) {
+      currentArbitraryRoute = routeData;
+      activeRouteId = 'arbitrary_route';
+      uiController.renderArbitraryRouteCard(routeData);
+      if (routeData.polyline && routeData.polyline.length > 0) {
+        mapController.renderArbitraryRoute(routeData);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to query graph route:', err);
   }
 }

@@ -85,8 +85,9 @@
             <input 
               id="origin-input" 
               type="text" 
+              list="mrt-stations-datalist"
               value="Blk 230 Tampines St 21 (Home)" 
-              placeholder="Enter starting location..." 
+              placeholder="Enter starting station or address..." 
               class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
             />
           </div>
@@ -95,18 +96,48 @@
             <input 
               id="dest-input" 
               type="text" 
+              list="mrt-stations-datalist"
               value="One Raffles Place, CBD (Office)" 
-              placeholder="Enter destination..." 
+              placeholder="Enter destination station or address..." 
               class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
             />
           </div>
         </div>
 
-        <!-- Swap Button -->
-        <button id="btn-swap-locations" title="Swap Origin and Destination" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white shrink-0 transition">
-          <i class="fa-solid fa-arrow-right-arrow-left text-xs rotate-90"></i>
-        </button>
+        <!-- Action Buttons Column (Swap & Search) -->
+        <div class="flex flex-col gap-1.5 shrink-0">
+          <button id="btn-swap-locations" type="button" title="Swap Origin and Destination" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition">
+            <i class="fa-solid fa-arrow-right-arrow-left text-xs rotate-90"></i>
+          </button>
+          <button id="btn-search-route" type="button" title="Find Graph Route (/api/route)" class="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white flex items-center justify-center shadow transition">
+            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+          </button>
+        </div>
       </div>
+
+      <!-- Datalist for fast Singapore MRT station suggestions -->
+      <datalist id="mrt-stations-datalist">
+        <option value="Tampines"></option>
+        <option value="Raffles Place"></option>
+        <option value="Jurong East"></option>
+        <option value="Bishan"></option>
+        <option value="Bugis"></option>
+        <option value="Telok Ayer"></option>
+        <option value="City Hall"></option>
+        <option value="Dhoby Ghaut"></option>
+        <option value="Outram Park"></option>
+        <option value="Buona Vista"></option>
+        <option value="Serangoon"></option>
+        <option value="Paya Lebar"></option>
+        <option value="one-north"></option>
+        <option value="Punggol"></option>
+        <option value="HarbourFront"></option>
+        <option value="Marina Bay"></option>
+        <option value="Woodlands"></option>
+        <option value="Newton"></option>
+        <option value="Chinatown"></option>
+        <option value="MacPherson"></option>
+      </datalist>
 
       <!-- Timing & Preferences Bar (Google Maps Style Options) -->
       <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-300">
@@ -242,6 +273,34 @@
     <!-- Route Transit Cards -->
     <div class="grid grid-cols-1 gap-2" id="route-cards-list">
       
+      <!-- Route 0: Dynamic Arbitrary Graph Router Path -->
+      <div id="card-arbitrary-route" class="route-card p-2.5 rounded-xl border bg-indigo-950/40 border-indigo-700/60 flex flex-col gap-1 cursor-pointer transition hover:border-indigo-500 hidden">
+        <div class="flex items-center justify-between w-full">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-500/40 flex items-center justify-center font-bold text-xs shrink-0">
+              <i class="fa-solid fa-route"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-1 flex-wrap">
+                <span id="arbitrary-route-title" class="font-semibold text-xs text-white">Custom Graph Route</span>
+                <span id="arbitrary-graph-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-indigo-950 text-indigo-300 border border-indigo-800">GRAPH ROUTER</span>
+                <span id="arbitrary-shelter-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-0.5">🛡️ 80% SHELTER</span>
+              </div>
+              <p id="arbitrary-route-meta" class="text-[11px] text-slate-400">Door-to-door path via MRT network</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-right shrink-0">
+            <div>
+              <div id="arbitrary-arrival-time" class="text-sm font-bold text-indigo-400">--:-- AM</div>
+              <div id="arbitrary-status-tag" class="text-[10px] text-slate-400">Pathfinder</div>
+            </div>
+            <i id="arbitrary-chevron" class="fa-solid fa-chevron-down text-slate-500 text-[10px] transition-transform duration-200"></i>
+          </div>
+        </div>
+        <!-- Collapsible Turn-by-Turn Steps -->
+        <div id="arbitrary-legs-container" class="hidden"></div>
+      </div>
+
       <!-- Route 1: Primary East-West Line -->
       <div id="card-primary-ewl" class="route-card p-2.5 rounded-xl border bg-slate-800/80 border-slate-700 flex flex-col gap-1 cursor-pointer transition">
         <div class="flex items-center justify-between w-full">

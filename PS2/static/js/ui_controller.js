@@ -41,6 +41,9 @@ export class UIController {
     document.getElementById('card-bypass-bus10e')?.addEventListener('click', () => {
       toggleRoute('bypass_bus10e', 'bus-legs-container', 'bus-chevron');
     });
+    document.getElementById('card-arbitrary-route')?.addEventListener('click', () => {
+      toggleRoute('arbitrary_route', 'arbitrary-legs-container', 'arbitrary-chevron');
+    });
 
     // Arrival timing input (editable down to the minute)
     const arrivalInput = document.getElementById('input-arrival-time');
@@ -79,17 +82,46 @@ export class UIController {
     document.getElementById('btn-minute-dec')?.addEventListener('click', () => adjustMinutes(-1));
     document.getElementById('btn-minute-inc')?.addEventListener('click', () => adjustMinutes(1));
 
+    // Location inputs & Search actions
+    const originInput = document.getElementById('origin-input');
+    const destInput = document.getElementById('dest-input');
+
+    const triggerLocationChange = () => {
+      if (originInput && destInput && this.handlers.onLocationChange) {
+        this.handlers.onLocationChange(originInput.value, destInput.value);
+      }
+    };
+
     // Swap locations button
     document.getElementById('btn-swap-locations')?.addEventListener('click', () => {
-      const originInput = document.getElementById('origin-input');
-      const destInput = document.getElementById('dest-input');
       if (originInput && destInput) {
         const temp = originInput.value;
         originInput.value = destInput.value;
         destInput.value = temp;
-        if (this.handlers.onLocationChange) {
-          this.handlers.onLocationChange(originInput.value, destInput.value);
-        }
+        triggerLocationChange();
+      }
+    });
+
+    // Search button
+    document.getElementById('btn-search-route')?.addEventListener('click', () => {
+      triggerLocationChange();
+    });
+
+    // Auto-search on change or enter key
+    originInput?.addEventListener('change', triggerLocationChange);
+    destInput?.addEventListener('change', triggerLocationChange);
+
+    originInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        triggerLocationChange();
+      }
+    });
+
+    destInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        triggerLocationChange();
       }
     });
 
@@ -350,24 +382,49 @@ export class UIController {
         }
       }
 
+      // Exact turn-by-turn walking steps breakdown
+      let walkingStepsHtml = '';
+      if (leg.mode === 'WALK') {
+        const details = this.getDetailedWalkingSteps(leg.name, exitInfo);
+        if (details && details.steps && details.steps.length > 0) {
+          walkingStepsHtml = `
+            <div class="mt-2 p-2.5 rounded-lg bg-slate-900/95 border border-slate-700/80 text-[10px] flex flex-col gap-1.5 shadow-md">
+              <div class="flex items-center justify-between text-amber-300 font-bold border-b border-slate-800 pb-1">
+                <span class="flex items-center gap-1.5"><i class="fa-solid fa-diamond-turn-right text-amber-400"></i> Exact Walking Guidance</span>
+                <span class="text-slate-400 font-mono text-[9px] font-normal">${details.shelter || ''}</span>
+              </div>
+              <ol class="flex flex-col gap-1.5 pl-0.5">
+                ${details.steps.map((step, sIdx) => `
+                  <li class="flex items-start gap-2 text-slate-200 leading-snug">
+                    <span class="w-4 h-4 rounded-full bg-amber-950 text-amber-300 border border-amber-800/80 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">${sIdx + 1}</span>
+                    <span class="text-[11px]">${step}</span>
+                  </li>
+                `).join('')}
+              </ol>
+            </div>
+          `;
+        }
+      }
+
       html += `
         <div class="flex items-start gap-2 text-xs">
           <div class="flex flex-col items-center mt-0.5 shrink-0">
             <div class="w-5 h-5 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px] ${iconColor}">
               <i class="fa-solid ${modeIcon}"></i>
             </div>
-            ${!isLast ? '<div class="w-0.5 h-4 bg-slate-700/80 my-0.5"></div>' : ''}
+            ${!isLast ? '<div class="w-0.5 h-full min-h-[16px] bg-slate-700/80 my-0.5"></div>' : ''}
           </div>
-          <div class="flex-1 pb-0.5">
+          <div class="flex-1 pb-1">
             <div class="flex items-center justify-between">
-              <span class="text-[11px] font-medium text-slate-200 leading-tight">${leg.name}</span>
-              <span class="text-[10px] text-slate-400 font-mono shrink-0 ml-1.5">${leg.duration}</span>
+              <span class="text-[11px] font-semibold text-slate-100 leading-tight">${leg.name}</span>
+              <span class="text-[10px] text-slate-300 font-mono font-bold shrink-0 ml-1.5">${leg.duration}</span>
             </div>
             <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
               ${leg.distance ? `<span class="text-[10px] text-slate-400">${leg.distance}</span>` : ''}
               ${exitBadge}
               ${badgeHtml}
             </div>
+            ${walkingStepsHtml}
           </div>
         </div>
       `;
@@ -405,6 +462,7 @@ export class UIController {
     document.querySelectorAll('.route-card').forEach(card => card.classList.remove('active-route'));
 
     const routeConfigs = [
+      { id: 'arbitrary_route', cardId: 'card-arbitrary-route', legsId: 'arbitrary-legs-container', chevronId: 'arbitrary-chevron' },
       { id: 'primary_ewl', cardId: 'card-primary-ewl', legsId: 'ewl-legs-container', chevronId: 'ewl-chevron' },
       { id: 'bypass_dtl', cardId: 'card-bypass-dtl', legsId: 'dtl-legs-container', chevronId: 'dtl-chevron' },
       { id: 'bypass_bus10e', cardId: 'card-bypass-bus10e', legsId: 'bus-legs-container', chevronId: 'bus-chevron' },
@@ -501,6 +559,245 @@ export class UIController {
       btn.classList.remove('bg-blue-950/90', 'border-blue-500/80', 'text-blue-200');
       btn.classList.add('bg-slate-900/90', 'border-slate-700', 'text-slate-300');
     }
+  }
+
+  renderArbitraryRouteCard(routeData) {
+    const card = document.getElementById('card-arbitrary-route');
+    if (!card) return;
+
+    card.classList.remove('hidden');
+
+    const titleEl = document.getElementById('arbitrary-route-title');
+    const metaEl = document.getElementById('arbitrary-route-meta');
+    const arrivalEl = document.getElementById('arbitrary-arrival-time');
+    const statusEl = document.getElementById('arbitrary-status-tag');
+    const shelterChip = document.getElementById('arbitrary-shelter-chip');
+    const graphChip = document.getElementById('arbitrary-graph-chip');
+
+    if (titleEl) titleEl.textContent = routeData.title || 'Arbitrary Graph Route';
+    if (metaEl) metaEl.textContent = `${routeData.status || ''} • ${routeData.total_duration_min} mins total`;
+    if (arrivalEl) arrivalEl.textContent = routeData.estimated_arrival || '--:-- AM';
+    if (statusEl) statusEl.textContent = `${routeData.total_duration_min} min path`;
+    if (shelterChip && routeData.sheltered_percent) {
+      shelterChip.textContent = `🛡️ ${routeData.sheltered_percent}% SHELTER`;
+    }
+    if (graphChip && routeData.lines_used) {
+      graphChip.textContent = routeData.lines_used.join(' → ');
+    }
+
+    // Render turn-by-turn legs
+    const destStn = routeData.title?.split(' to ')[1]?.split(' (')[0] || 'Destination';
+    this.renderRouteLegs('arbitrary-legs-container', routeData.legs, 'indigo', {
+      exitStation: `${destStn} MRT`,
+      exitDoor: 'Exit B',
+      exitNote: 'Optimal graph pathfinder connection',
+      shelterPercent: routeData.sheltered_percent || 80
+    });
+
+    this.highlightActiveCard('arbitrary_route');
+  }
+
+  hideArbitraryRouteCard() {
+    const card = document.getElementById('card-arbitrary-route');
+    if (card) card.classList.add('hidden');
+  }
+
+  extractStationName(inputStr) {
+    if (!inputStr) return '';
+    const trimmed = inputStr.trim();
+    const knownStations = [
+      "Marina South Pier", "Gardens by the Bay", "Orchard Boulevard", "Woodlands North", 
+      "Woodlands South", "Botanic Gardens", "King Albert Park", "Bukit Panjang", 
+      "Beauty World", "Sixth Avenue", "Tan Kah Kee", "Little India", "Fort Canning", 
+      "Geylang Bahru", "Bedok Reservoir", "Tampines West", "Tampines East", "Upper Changi", 
+      "Choa Chu Kang", "Bukit Batok", "Bukit Gombak", "Yio Chu Kang", "Ang Mo Kio", 
+      "Toa Payoh", "Dhoby Ghaut", "Marina Bay", "HarbourFront", "Clarke Quay", "Farrer Park", 
+      "Potong Pasir", "Bras Basah", "Nicoll Highway", "Lorong Chuan", "Holland Village", 
+      "Buona Vista", "Kent Ridge", "Haw Par Villa", "Pasir Panjang", "Labrador Park", 
+      "Telok Blangah", "Upper Thomson", "Shenton Way", "Chinese Garden", "Tanjong Pagar", 
+      "Outram Park", "Tiong Bahru", "Jurong East", "Tanah Merah", "Paya Lebar", 
+      "Raffles Place", "City Hall", "Boon Keng", "Woodleigh", "Serangoon", "MacPherson", 
+      "Tai Seng", "Caldecott", "one-north", "Mayflower", "Bright Hill", "Springleaf", 
+      "Admiralty", "Sembawang", "Canberra", "Marsiling", "Woodlands", "Bencoolen", 
+      "Bayfront", "Downtown", "Telok Ayer", "Chinatown", "Kaki Bukit", "Bedok North", 
+      "Pasir Ris", "Tampines", "Kembangan", "Aljunied", "Lavender", "Redhill", 
+      "Queenstown", "Commonwealth", "Clementi", "Lakeside", "Boon Lay", "Pioneer", 
+      "Joo Koon", "Yew Tee", "Kranji", "Yishun", "Khatib", "Bishan", "Braddell", 
+      "Novena", "Newton", "Orchard", "Somerset", "Hougang", "Buangkok", "Sengkang", 
+      "Punggol", "Stadium", "Dakota", "Bartley", "Marymount", "Stevens", "Napier", 
+      "Havelock", "Maxwell", "Cashew", "Hillview", "Rochor", "Bugis", "Promenade", 
+      "Mattar", "Simei", "Bedok", "Eunos", "Kallang", "Dover", "Lentor", "Ubi", "Expo"
+    ];
+    const upper = trimmed.toUpperCase();
+    for (const stn of knownStations) {
+      if (upper.includes(stn.toUpperCase())) {
+        return stn;
+      }
+    }
+    const cleaned = trimmed.replace(/\(.*?\)/g, '').replace(/Blk\s+\w+/gi, '').replace(/St\s+\w+/gi, '').trim();
+    return cleaned || trimmed;
+  }
+
+  getDetailedWalkingSteps(legName, exitInfo) {
+    const nameLower = (legName || '').toLowerCase();
+    
+    // 1. Destination Walk to One Raffles Place / Desk from Raffles Place EWL
+    if (nameLower.includes('raffles place') && (nameLower.includes('desk') || nameLower.includes('destination') || nameLower.includes('office') || nameLower.includes('final'))) {
+      return {
+        landmark: 'Exit B Direct Underpass Linkway',
+        shelter: '🛡️ 100% Covered & Air-Conditioned',
+        steps: [
+          'Concourse Level &rarr; Tap out at fare gates and follow overhead signs for <strong>Exit B (One Raffles Place / Chulia St)</strong>.',
+          'Take the Exit B descending escalator directly into the <strong>B1 retail underpass linkway</strong>.',
+          'Walk straight 120m through the air-conditioned underpass past Starbucks directly into <strong>One Raffles Place Tower 1 lobby elevators</strong> (zero rain exposure).'
+        ]
+      };
+    }
+
+    // 2. Destination Walk from Telok Ayer DTL to One Raffles Place / Desk
+    if (nameLower.includes('telok ayer') && (nameLower.includes('desk') || nameLower.includes('destination') || nameLower.includes('office') || nameLower.includes('final'))) {
+      return {
+        landmark: 'Cross St & Church St Covered Arcade',
+        shelter: '🛡️ 95% Covered Linkway',
+        steps: [
+          'Concourse Level &rarr; Tap out and take <strong>Exit B escalator</strong> up to street level at Cross Street.',
+          'Walk 180m under the <strong>Cross Street covered arcade</strong> pavement past Far East Square.',
+          'Turn left onto <strong>Church Street covered walkway</strong> past Prudential Tower (150m).',
+          'Enter through the <strong>One Raffles Place rear glass atrium entrance</strong> (80m).'
+        ]
+      };
+    }
+
+    // 3. Destination Walk from Fullerton Sq to One Raffles Place
+    if (nameLower.includes('fullerton')) {
+      return {
+        landmark: 'Battery Rd & Chulia St Pavement',
+        shelter: '☂️ 55% Sheltered (Open Crossing)',
+        steps: [
+          'Alight at <strong>Fullerton Sq (Bus Stop 03011)</strong> along Fullerton Road.',
+          'Walk 120m along Battery Road pavement towards Raffles Place square.',
+          'Cross Chulia Street at the signalized pedestrian crossing into <strong>One Raffles Place main lobby</strong>.'
+        ]
+      };
+    }
+
+    // 4. Origin Walk to Jurong East MRT
+    if (nameLower.includes('jurong east')) {
+      return {
+        landmark: 'JEM / Westgate Elevated Linkbridge',
+        shelter: '🛡️ 75% Covered Linkway',
+        steps: [
+          'Access station via <strong>JEM / Westgate Level 2 elevated covered bridge</strong> or Bus Interchange Exit A.',
+          'Tap in at the <strong>EWL Concourse fare gates</strong>.',
+          'Take the central escalator up to <strong>Platform A/B</strong> for East-West Line trains towards Pasir Ris.'
+        ]
+      };
+    }
+
+    // 5. Origin Walk from Home to Tampines EWL
+    if (nameLower.includes('tampines') && (nameLower.includes('home') || nameLower.includes('ewl') || nameLower.includes('ew2'))) {
+      return {
+        landmark: 'Tampines Central 1 Covered Linkway',
+        shelter: '🛡️ 80% Sheltered Linkway',
+        steps: [
+          'Depart Blk 230 via the <strong>continuous HDB high-covered walkway corridor</strong> (300m).',
+          'Follow the sheltered footpath past Tampines Central 1 and Tampines 1 mall (150m).',
+          'Enter Tampines MRT Concourse through <strong>Entrance Exit A</strong> (70m to fare gates).'
+        ]
+      };
+    }
+
+    // 6. Origin Walk from Home to Tampines DTL
+    if (nameLower.includes('tampines') && (nameLower.includes('dtl') || nameLower.includes('dt32') || nameLower.includes('downtown'))) {
+      return {
+        landmark: 'Tampines East / DTL Covered Connector',
+        shelter: '🛡️ 90% Sheltered Linkway',
+        steps: [
+          'Depart Blk 230 heading South towards Tampines Central along covered walkway.',
+          'Follow covered linkway to <strong>Tampines DTL Entrance Exit B</strong>.',
+          'Tap in at fare gates and descend escalator to Platform B2.'
+        ]
+      };
+    }
+
+    // 7. Interchange transfer: Buona Vista (EWL <-> CCL)
+    if (nameLower.includes('buona vista')) {
+      return {
+        landmark: 'Exit C Sheltered Transfer Gantry',
+        shelter: '🛡️ 100% Sheltered Transfer',
+        steps: [
+          'Alight at elevated EWL platform & take the central escalator down to Concourse level.',
+          'Pass through the sheltered transfer linkway (Exit C connection) following <strong>yellow Circle Line floor decals</strong>.',
+          'Descend 2 escalators to the <strong>Circle Line B2 underground platform</strong> (3 min transfer walk).'
+        ]
+      };
+    }
+
+    // 8. Interchange transfer: Bugis (EWL <-> DTL)
+    if (nameLower.includes('bugis')) {
+      return {
+        landmark: 'Air-Conditioned Transfer Linkway',
+        shelter: '🛡️ 100% Covered & Air-Conditioned',
+        steps: [
+          'Exit EWL platform towards B2 concourse.',
+          'Follow <strong>blue Downtown Line signage</strong> through 220m air-conditioned underground linkway.',
+          'Descend escalator to B3 Downtown Line platform (4 min transfer walk).'
+        ]
+      };
+    }
+
+    // 9. Interchange transfer: Outram Park (EWL <-> TEL / NEL)
+    if (nameLower.includes('outram park')) {
+      return {
+        landmark: 'Concourse Moving Travelator Link',
+        shelter: '🛡️ 100% Sheltered Connector',
+        steps: [
+          'Follow overhead signs towards the Thomson-East Coast / North-East Line transfer linkway.',
+          'Step onto the <strong>concourse moving travelator connector</strong> (4 min walk, 100% sheltered).'
+        ]
+      };
+    }
+
+    // 10. General Interchange / Transfer
+    if (nameLower.includes('interchange') || nameLower.includes('transfer')) {
+      return {
+        landmark: 'Internal Station Transfer Linkway',
+        shelter: '🛡️ 100% Sheltered Linkway',
+        steps: [
+          'Alight from train and proceed to concourse level following line color-coded overhead signage.',
+          'Pass through the internal platform transfer gantry to connecting line platform.'
+        ]
+      };
+    }
+
+    // 11. Generic final destination walk
+    if (nameLower.includes('destination') || nameLower.includes('final')) {
+      const exitDoor = exitInfo?.exitDoor || 'Exit B';
+      const exitStation = exitInfo?.exitStation || 'MRT Station';
+      return {
+        landmark: `${exitStation} to Destination`,
+        shelter: `🛡️ ${exitInfo?.shelterPercent || 80}% Covered Walkway`,
+        steps: [
+          `Alight at platform and take escalators to Concourse level.`,
+          `Tap out at fare gates and follow overhead signs to <strong>${exitDoor}</strong>.`,
+          `Follow covered walkway and pedestrian crossings directly to destination lobby.`
+        ]
+      };
+    }
+
+    // 12. Generic walk to MRT
+    if (nameLower.includes('walk to') || nameLower.includes('mrt')) {
+      return {
+        landmark: 'Street to Station Concourse',
+        shelter: '🛡️ Covered Footpath',
+        steps: [
+          'Follow nearest covered pedestrian linkway towards station entrance.',
+          'Enter station concourse via Entrance Exit A/B and tap in at fare gates.'
+        ]
+      };
+    }
+
+    return null;
   }
 
   formatTime12h(timeStr) {

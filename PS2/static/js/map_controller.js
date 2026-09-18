@@ -64,13 +64,23 @@ export class MapController {
 
       if (shouldDraw) {
         L.polyline(walk.coords, {
-          color: '#94a3b8',
-          weight: 3.5,
-          dashArray: '4, 6',
+          color: '#38bdf8',
+          weight: 4.5,
+          dashArray: '6, 6',
           opacity: 0.95
-        }).addTo(this.layersGroup).bindPopup(
-          `<b>${walk.name}</b><br>${walk.distance_m}m • ${walk.duration_min} min (${walk.sheltered_percent}% Covered)`
-        );
+        }).addTo(this.layersGroup).bindPopup(`
+          <div class="p-1.5 text-xs">
+            <strong class="text-blue-600 flex items-center gap-1">
+              <i class="fa-solid fa-person-walking text-blue-500"></i> ${walk.name}
+            </strong>
+            <div class="text-[11px] text-slate-600 my-0.5">
+              <strong>${walk.distance_m}m</strong> • ~<strong>${walk.duration_min} mins</strong>
+            </div>
+            <span class="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold ${walk.sheltered_percent >= 80 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+              🛡️ ${walk.sheltered_percent}% Covered Walkway (LTA GIS)
+            </span>
+          </div>
+        `);
       }
     });
 
@@ -219,6 +229,154 @@ export class MapController {
         <span class="text-emerald-700 font-medium">🛡️ 100% Underground / Covered Access</span>
       </div>
     `);
+  }
+
+  renderArbitraryRoute(routeData) {
+    if (!this.map || !this.layersGroup) return;
+    this.layersGroup.clearLayers();
+
+    const polylineCoords = routeData.polyline || routeData.route_polyline || [];
+    const stations = routeData.stations || routeData.route_stations || [];
+
+    const lineColors = {
+      'EWL': '#009645',
+      'NSL': '#D42E12',
+      'NEL': '#9900AA',
+      'CCL': '#FA9E0D',
+      'DTL': '#005EC4',
+      'TEL': '#9D5B25'
+    };
+
+    const primaryLine = routeData.line || (routeData.lines_used && routeData.lines_used[0]) || 'EWL';
+    const trackColor = lineColors[primaryLine] || '#6366f1';
+
+    // 1. Draw route polyline
+    if (polylineCoords.length > 0) {
+      const poly = L.polyline(polylineCoords, {
+        color: trackColor,
+        weight: 6,
+        opacity: 0.95,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(this.layersGroup);
+
+      poly.bindPopup(`<b>${routeData.title}</b><br>${routeData.status || ''} • ${routeData.total_duration_min} mins`);
+
+      this.map.fitBounds(poly.getBounds(), { padding: [60, 60] });
+    }
+
+    // 2. Draw stations along route
+    stations.forEach((stn, idx) => {
+      const isOrigin = idx === 0;
+      const isDest = idx === stations.length - 1;
+
+      if (isOrigin) {
+        const homeIcon = L.divIcon({
+          className: '',
+          html: `<div class="w-6 h-6 rounded-full bg-blue-600 border-2 border-white flex items-center justify-center text-white text-[11px] shadow-lg"><i class="fa-solid fa-location-dot"></i></div>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+        L.marker(stn.coords, { icon: homeIcon }).addTo(this.layersGroup).bindPopup(`<b>Start: ${stn.name}</b><br>Origin Station`);
+      } else if (isDest) {
+        const destIcon = L.divIcon({
+          className: '',
+          html: `<div class="w-6 h-6 rounded-full bg-rose-600 border-2 border-white flex items-center justify-center text-white text-[11px] shadow-lg"><i class="fa-solid fa-flag-checkered"></i></div>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+        L.marker(stn.coords, { icon: destIcon }).addTo(this.layersGroup).bindPopup(`<b>Destination: ${stn.name}</b><br>Arrive via Exit B`);
+      } else {
+        const pinIcon = L.divIcon({
+          className: '',
+          html: `<div class="station-pin" style="background-color: ${lineColors[stn.line] || trackColor}"></div>`,
+          iconSize: [12, 12],
+          iconAnchor: [6, 6]
+        });
+        L.marker(stn.coords, { icon: pinIcon }).addTo(this.layersGroup).bindPopup(`<b>${stn.name}</b><br>${stn.line || ''}`);
+      }
+    });
+
+    // 3. Draw final pedestrian walking path to office desk if terminating in CBD
+    const lastStn = stations[stations.length - 1];
+    if (lastStn) {
+      const lastStnName = (lastStn.name || '').toUpperCase();
+      const officeCoords = [1.2840, 103.8515];
+
+      if (lastStnName.includes('RAFFLES')) {
+        const walkCoords = [lastStn.coords, officeCoords];
+        L.polyline(walkCoords, {
+          color: '#38bdf8',
+          weight: 4.5,
+          dashArray: '6, 6',
+          opacity: 0.95
+        }).addTo(this.layersGroup).bindPopup(`
+          <div class="p-1.5 text-xs">
+            <strong class="text-blue-600 flex items-center gap-1">
+              <i class="fa-solid fa-person-walking text-blue-500"></i> Raffles Place Exit B to Desk
+            </strong>
+            <div class="text-[11px] text-slate-700 my-0.5">
+              <strong>120m</strong> • ~<strong>2 mins</strong>
+            </div>
+            <span class="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+              🛡️ 100% Underground & Covered Linkway
+            </span>
+            <div class="mt-1 pt-1 border-t border-slate-200 text-[10px] text-slate-600 leading-snug">
+              Direct B1 retail underpass into One Raffles Place Tower 1 elevators.
+            </div>
+          </div>
+        `);
+
+        const officeIcon = L.divIcon({
+          className: '',
+          html: '<div class="w-6 h-6 rounded-full bg-amber-500 border-2 border-white flex items-center justify-center text-white text-[11px] shadow-lg"><i class="fa-solid fa-briefcase"></i></div>',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+        L.marker(officeCoords, { icon: officeIcon }).addTo(this.layersGroup).bindPopup(`
+          <div class="p-1 text-xs">
+            <b>Office Desk — One Raffles Place</b><br>
+            <span class="text-emerald-700 font-semibold">🛡️ 100% Covered from Exit B</span>
+          </div>
+        `);
+      } else if (lastStnName.includes('TELOK AYER')) {
+        const walkCoords = [lastStn.coords, [1.2833, 103.8500], officeCoords];
+        L.polyline(walkCoords, {
+          color: '#38bdf8',
+          weight: 4.5,
+          dashArray: '6, 6',
+          opacity: 0.95
+        }).addTo(this.layersGroup).bindPopup(`
+          <div class="p-1.5 text-xs">
+            <strong class="text-blue-600 flex items-center gap-1">
+              <i class="fa-solid fa-person-walking text-blue-500"></i> Telok Ayer Exit B via Cross St
+            </strong>
+            <div class="text-[11px] text-slate-700 my-0.5">
+              <strong>410m</strong> • ~<strong>5 mins</strong>
+            </div>
+            <span class="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+              🛡️ 95% Covered Linkway
+            </span>
+            <div class="mt-1 pt-1 border-t border-slate-200 text-[10px] text-slate-600 leading-snug">
+              Cross Street covered arcade past Far East Square, turn left on Church St.
+            </div>
+          </div>
+        `);
+
+        const officeIcon = L.divIcon({
+          className: '',
+          html: '<div class="w-6 h-6 rounded-full bg-amber-500 border-2 border-white flex items-center justify-center text-white text-[11px] shadow-lg"><i class="fa-solid fa-briefcase"></i></div>',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+        L.marker(officeCoords, { icon: officeIcon }).addTo(this.layersGroup).bindPopup(`
+          <div class="p-1 text-xs">
+            <b>Office Desk — One Raffles Place</b><br>
+            <span class="text-emerald-700 font-semibold">🛡️ 95% Sheltered via Cross St</span>
+          </div>
+        `);
+      }
+    }
   }
 
   panToCenter() {
