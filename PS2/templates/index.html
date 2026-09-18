@@ -54,10 +54,12 @@
 
       <!-- Quick Action Controls: Persona Badge + Scenarios Toggle -->
       <div class="flex items-center gap-1.5 pointer-events-auto">
-        <div class="bg-slate-900/90 backdrop-blur-md border border-slate-700 px-2.5 py-1.5 rounded-full shadow text-[11px] text-slate-300 flex items-center gap-1.5">
+        <button id="persona-toggle-btn" class="bg-slate-900/90 backdrop-blur-md hover:bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-full shadow text-[11px] text-slate-300 flex items-center gap-1.5 transition">
           <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>Rachel (EWL)</span>
-        </div>
+          <span id="active-persona-label">Rachel (EWL)</span>
+          <span id="persona-name-display" class="hidden">Rachel (EWL)</span>
+          <i class="fa-solid fa-chevron-down text-[9px] text-slate-400"></i>
+        </button>
         <button id="scenario-toggle-btn" class="bg-slate-900/90 backdrop-blur-md hover:bg-slate-800 active:bg-slate-700 border border-slate-700 text-indigo-300 px-3 py-1.5 rounded-full shadow text-xs font-medium flex items-center gap-1.5 transition">
           <i class="fa-solid fa-sliders text-indigo-400"></i>
           <span>Scenarios</span>
@@ -88,8 +90,10 @@
               list="mrt-stations-datalist"
               value="Blk 230 Tampines St 21 (Home)" 
               placeholder="Enter 6-digit postal (e.g. 529538), address, or station..." 
+              autocomplete="off"
               class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
             />
+            <div id="origin-suggestions" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-800/80"></div>
           </div>
           <!-- Destination -->
           <div class="relative flex items-center">
@@ -99,8 +103,10 @@
               list="mrt-stations-datalist"
               value="One Raffles Place, CBD (Office)" 
               placeholder="Enter 6-digit postal (e.g. 048624), address, or station..." 
+              autocomplete="off"
               class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
             />
+            <div id="dest-suggestions" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-800/80"></div>
           </div>
         </div>
 
@@ -202,7 +208,7 @@
     <!-- ================================================================= -->
     <!-- PROACTIVE TRAFFIC DETOUR / INCIDENT BANNER (Slides down on alert) -->
     <!-- ================================================================= -->
-    <div id="alert-banner" class="pointer-events-auto rounded-xl p-3 border shadow-2xl transition-all duration-300 bg-emerald-950/80 border-emerald-700/80">
+    <div id="proactive-alert-banner" class="pointer-events-auto rounded-xl p-3 border shadow-2xl transition-all duration-300 bg-emerald-950/80 border-emerald-700/80">
       
       <div class="flex items-center justify-between mb-1">
         <div class="flex items-center gap-1.5">
@@ -211,9 +217,18 @@
           </span>
           <span id="alert-status-label" class="text-[11px] font-bold uppercase tracking-wider text-emerald-400">On Schedule</span>
         </div>
-        <span id="noise-filter-badge" class="text-[10px] px-1.5 py-0.5 bg-slate-800 text-slate-400 rounded border border-slate-700 font-mono">
-          Noise Filter: &lt;15m Silent
-        </span>
+        <div class="flex items-center gap-1.5">
+          <span id="ai-meta-badge" class="hidden text-[9px] px-2 py-0.5 bg-indigo-950 text-indigo-300 border border-indigo-700 rounded-full font-mono shadow-sm"></span>
+          <span id="noise-filter-badge" class="text-[10px] px-1.5 py-0.5 bg-slate-800 text-slate-400 rounded border border-slate-700 font-mono">
+            Noise Filter: &lt;15m Silent
+          </span>
+        </div>
+      </div>
+
+      <!-- Pre-emptive Crowd Departure Warning -->
+      <div id="pcd-forecast-banner" class="hidden mb-1.5 p-2 rounded-lg bg-amber-950/80 border border-amber-600/80 text-[11px] text-amber-200 flex items-center gap-1.5 shadow-sm">
+        <i class="fa-solid fa-people-group text-amber-400 shrink-0"></i>
+        <span id="pcd-forecast-text" class="leading-snug"></span>
       </div>
 
       <div id="alert-headline" class="text-xs font-bold text-white leading-tight mb-0.5">
@@ -329,11 +344,11 @@
         <div class="flex items-center justify-between w-full">
           <div class="flex items-center gap-2.5">
             <div class="w-8 h-8 rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold text-xs shrink-0">
-              <i class="fa-solid fa-train"></i>
+              <i id="ewl-icon" class="fa-solid fa-train"></i>
             </div>
             <div>
               <div class="flex items-center gap-1 flex-wrap">
-                <span class="font-semibold text-xs text-white">East-West Line (Direct)</span>
+                <span id="ewl-route-name" class="font-semibold text-xs text-white">East-West Line (Direct)</span>
                 <span id="ewl-crowd-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-amber-950 text-amber-300 border border-amber-800">CROWD: MOD</span>
                 <span id="ewl-exit-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-blue-950 text-blue-300 border border-blue-800 flex items-center gap-0.5"><i class="fa-solid fa-door-open text-[8px]"></i> EXIT B</span>
                 <span id="ewl-shelter-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-0.5">🛡️ 80% SHELTER</span>
@@ -436,6 +451,28 @@
 
       <div class="flex flex-col gap-2" id="scenarios-options-container">
         <!-- Dynamically injected -->
+      </div>
+
+      <!-- Commuter Persona Switcher (Step A / C) -->
+      <div class="pt-2 border-t border-slate-800 flex flex-col gap-1.5">
+        <div class="flex items-center justify-between text-xs text-slate-300 font-semibold">
+          <span class="flex items-center gap-1.5"><i class="fa-solid fa-user text-indigo-400"></i> Active Commuter Persona</span>
+          <span class="text-[10px] text-slate-500 font-normal">Switch Profile</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <button id="btn-persona-rachel" class="persona-btn p-2 rounded-lg border bg-indigo-950/80 border-indigo-500 text-white text-left flex flex-col transition ring-1 ring-indigo-400/50">
+            <span class="font-bold text-xs">Rachel</span>
+            <span class="text-[9px] text-emerald-400">EWL Direct</span>
+          </button>
+          <button id="btn-persona-arjun" class="persona-btn p-2 rounded-lg border bg-slate-800/60 border-slate-700 text-slate-300 text-left flex flex-col transition hover:text-white">
+            <span class="font-bold text-xs">Arjun</span>
+            <span class="text-[9px] text-blue-400">Cycle + CCL</span>
+          </button>
+          <button id="btn-persona-mdm-lim" class="persona-btn p-2 rounded-lg border bg-slate-800/60 border-slate-700 text-slate-300 text-left flex flex-col transition hover:text-white">
+            <span class="font-bold text-xs">Mdm Lim</span>
+            <span class="text-[9px] text-amber-400">Step-Free</span>
+          </button>
+        </div>
       </div>
 
       <div class="pt-2 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">

@@ -179,6 +179,146 @@ export class UIController {
     document.getElementById('select-noise-threshold')?.addEventListener('change', (e) => {
       if (this.handlers.onThresholdChange) this.handlers.onThresholdChange(e.target.value);
     });
+
+    // Persona toggle button & drawer buttons (Step A / C)
+    const personaToggleBtn = document.getElementById('persona-toggle-btn');
+    personaToggleBtn?.addEventListener('click', () => {
+      if (this.handlers.onCyclePersona) this.handlers.onCyclePersona();
+    });
+
+    ['rachel', 'arjun', 'mdm_lim'].forEach((pId) => {
+      const btn = document.getElementById(`btn-persona-${pId.replace('_', '-')}`);
+      btn?.addEventListener('click', () => {
+        if (this.handlers.onSelectPersona) this.handlers.onSelectPersona(pId);
+        document.getElementById('scenario-drawer')?.classList.add('hidden');
+      });
+    });
+
+    // Autocomplete dropdowns for search inputs
+    this.setupAutocomplete('origin-input', 'origin-suggestions');
+    this.setupAutocomplete('dest-input', 'dest-suggestions');
+  }
+
+  setupAutocomplete(inputId, dropdownId) {
+    const input = document.getElementById(inputId);
+    const dropdown = document.getElementById(dropdownId);
+    if (!input || !dropdown) return;
+
+    let debounceTimer = null;
+
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    };
+
+    const renderSuggestions = (items) => {
+      if (!items || items.length === 0) {
+        dropdown.classList.add('hidden');
+        dropdown.innerHTML = '';
+        return;
+      }
+
+      dropdown.innerHTML = items.map((item) => {
+        let iconHtml = '<i class="fa-solid fa-location-dot text-blue-400"></i>';
+        let badgeColor = 'bg-blue-900/60 text-blue-300 border-blue-800';
+        let badgeText = 'Landmark';
+
+        if (item.type === 'postal_code') {
+          iconHtml = '<i class="fa-solid fa-envelope-open-text text-amber-400"></i>';
+          badgeColor = 'bg-amber-950 text-amber-300 border-amber-800';
+          badgeText = 'Postal Code';
+        } else if (item.type === 'station') {
+          iconHtml = '<i class="fa-solid fa-train-subway text-emerald-400"></i>';
+          badgeColor = 'bg-emerald-950 text-emerald-300 border-emerald-800';
+          badgeText = 'MRT Station';
+        }
+
+        return `
+          <div class="px-3 py-2 hover:bg-slate-800 active:bg-slate-700 cursor-pointer flex items-center justify-between gap-2 transition text-left suggestion-item" data-value="${escapeHtml(item.value)}">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-6 h-6 rounded-md bg-slate-800 flex items-center justify-center shrink-0 text-xs">
+                ${iconHtml}
+              </div>
+              <div class="min-w-0">
+                <div class="text-xs font-semibold text-slate-100 truncate">${escapeHtml(item.display)}</div>
+                <div class="text-[10px] text-slate-400 truncate">Nearest MRT: <span class="text-blue-300 font-medium">${escapeHtml(item.station)}</span></div>
+              </div>
+            </div>
+            <span class="text-[9px] px-1.5 py-0.5 rounded border shrink-0 ${badgeColor}">${badgeText}</span>
+          </div>
+        `;
+      }).join('');
+
+      dropdown.querySelectorAll('.suggestion-item').forEach(el => {
+        el.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          const val = el.getAttribute('data-value');
+          if (val) {
+            input.value = val;
+            dropdown.classList.add('hidden');
+            const originInput = document.getElementById('origin-input');
+            const destInput = document.getElementById('dest-input');
+            if (this.handlers.onLocationChange && originInput && destInput) {
+              this.handlers.onLocationChange(originInput.value, destInput.value);
+            }
+          }
+        });
+      });
+
+      dropdown.classList.remove('hidden');
+    };
+
+    const fetchSuggestions = async (val) => {
+      const q = (val || '').trim();
+      if (!q) {
+        dropdown.classList.add('hidden');
+        dropdown.innerHTML = '';
+        return;
+      }
+      try {
+        const resp = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        renderSuggestions(data);
+      } catch (err) {
+        console.warn('Autocomplete fetch error:', err);
+      }
+    };
+
+    input.addEventListener('input', (e) => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchSuggestions(e.target.value);
+      }, 150);
+    });
+
+    input.addEventListener('focus', () => {
+      if (input.value.trim().length >= 2) {
+        fetchSuggestions(input.value);
+      }
+    });
+
+    input.addEventListener('blur', () => {
+      setTimeout(() => dropdown.classList.add('hidden'), 200);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        dropdown.classList.add('hidden');
+      } else if (e.key === 'Enter') {
+        dropdown.classList.add('hidden');
+        const originInput = document.getElementById('origin-input');
+        const destInput = document.getElementById('dest-input');
+        if (this.handlers.onLocationChange && originInput && destInput) {
+          this.handlers.onLocationChange(originInput.value, destInput.value);
+        }
+      }
+    });
   }
 
   updateTopBar(data) {
@@ -200,8 +340,8 @@ export class UIController {
   }
 
   updateAlertBanner(data) {
-    const decision = data.decision;
-    const banner = document.getElementById('alert-banner');
+    const decision = data.decision || {};
+    const banner = document.getElementById('proactive-alert-banner') || document.getElementById('alert-banner');
     const alertIcon = document.getElementById('alert-icon');
     const statusLabel = document.getElementById('alert-status-label');
     const headline = document.getElementById('alert-headline');
@@ -209,8 +349,34 @@ export class UIController {
     const actionRow = document.getElementById('alert-action-row');
     const weatherChip = document.getElementById('weather-chip');
     const filterBadge = document.getElementById('noise-filter-badge');
+    const aiMetaBadge = document.getElementById('ai-meta-badge');
+    const pcdForecastBanner = document.getElementById('pcd-forecast-banner');
+    const pcdForecastText = document.getElementById('pcd-forecast-text');
 
-    if (filterBadge) filterBadge.textContent = `Noise Filter: <${decision.threshold_minutes}m Silent`;
+    if (filterBadge) filterBadge.textContent = `Noise Filter: <${decision.threshold_minutes || 15}m Silent`;
+
+    // Step D: AI Metadata display (compression ratio and latency)
+    if (aiMetaBadge) {
+      const aiMeta = decision.ai_metadata || {};
+      if (aiMeta.compression_ratio) {
+        aiMetaBadge.classList.remove('hidden');
+        aiMetaBadge.textContent = `🤖 AI Compressed: ${aiMeta.compression_ratio} | Latency: ${aiMeta.latency_ms || 1.2}ms`;
+        aiMetaBadge.title = `Model: ${aiMeta.model || 'Gemini 1.5 Flash'}`;
+      } else {
+        aiMetaBadge.classList.add('hidden');
+      }
+    }
+
+    // Step D: Pre-emptive PCD Crowd Forecast Warning
+    if (pcdForecastBanner && pcdForecastText) {
+      const pcdForecast = data.pcd_forecast || {};
+      if (pcdForecast.advice) {
+        pcdForecastBanner.classList.remove('hidden');
+        pcdForecastText.textContent = pcdForecast.advice;
+      } else {
+        pcdForecastBanner.classList.add('hidden');
+      }
+    }
 
     if (data.weather && weatherChip) {
       const isRain = data.weather.rain_alert;
@@ -219,25 +385,46 @@ export class UIController {
         : `<i class="fa-solid fa-sun text-amber-400"></i><span>${data.weather.origin_forecast}</span>`;
     }
 
-    if (decision.urgency === 'CALM') {
-      banner.className = 'pointer-events-auto rounded-xl p-3 border shadow-2xl transition-all duration-300 bg-emerald-950/80 border-emerald-700/80';
-      alertIcon.className = 'w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px]';
-      alertIcon.innerHTML = '<i class="fa-solid fa-check"></i>';
-      statusLabel.className = 'text-[11px] font-bold uppercase tracking-wider text-emerald-400';
-      statusLabel.textContent = 'On Schedule';
-      headline.textContent = decision.headline;
-      detail.textContent = decision.one_line_advice;
-      actionRow.classList.add('hidden');
-    } else {
-      banner.className = 'pointer-events-auto rounded-xl p-3 border shadow-2xl transition-all duration-300 bg-rose-950/90 border-rose-600/90 ring-1 ring-rose-500/40';
-      alertIcon.className = 'w-4 h-4 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center text-[10px]';
-      alertIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation animate-bounce"></i>';
-      statusLabel.className = 'text-[11px] font-bold uppercase tracking-wider text-rose-400';
-      statusLabel.textContent = 'Detour Recommendation';
-      headline.textContent = decision.headline;
-      detail.textContent = decision.one_line_advice;
-      actionRow.classList.remove('hidden');
+    if (headline) headline.textContent = decision.headline || 'All trains operating normally.';
+    if (detail) detail.textContent = decision.one_line_advice || decision.headline || 'On schedule.';
+
+    if (banner && alertIcon && statusLabel) {
+      if (decision.urgency === 'CALM') {
+        banner.className = 'pointer-events-auto rounded-xl p-3 border shadow-2xl transition-all duration-300 bg-emerald-950/80 border-emerald-700/80';
+        alertIcon.className = 'w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px]';
+        alertIcon.innerHTML = '<i class="fa-solid fa-check"></i>';
+        statusLabel.className = 'text-[11px] font-bold uppercase tracking-wider text-emerald-400';
+        statusLabel.textContent = 'On Schedule';
+        if (actionRow) actionRow.classList.add('hidden');
+      } else {
+        banner.className = 'pointer-events-auto rounded-xl p-3 border shadow-2xl transition-all duration-300 bg-rose-950/90 border-rose-600/90 ring-1 ring-rose-500/40';
+        alertIcon.className = 'w-4 h-4 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center text-[10px]';
+        alertIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation animate-bounce"></i>';
+        statusLabel.className = 'text-[11px] font-bold uppercase tracking-wider text-rose-400';
+        statusLabel.textContent = 'Detour Recommendation';
+        if (actionRow) actionRow.classList.remove('hidden');
+      }
     }
+  }
+
+  updatePersonaDisplay(data) {
+    const pId = (data.persona_id || 'rachel').toLowerCase();
+    const label = document.getElementById('active-persona-label');
+    const display = document.getElementById('persona-name-display');
+    const nameStr = pId === 'arjun' ? 'Arjun (Cycle/CCL)' : pId === 'mdm_lim' ? 'Mdm Lim (Step-Free)' : 'Rachel (EWL)';
+    if (label) label.textContent = nameStr;
+    if (display) display.textContent = nameStr;
+
+    ['rachel', 'arjun', 'mdm_lim'].forEach((id) => {
+      const btn = document.getElementById(`btn-persona-${id.replace('_', '-')}`);
+      if (btn) {
+        if (id === pId) {
+          btn.className = 'persona-btn p-2 rounded-lg border bg-indigo-950/80 border-indigo-500 text-white text-left flex flex-col transition ring-1 ring-indigo-400/50';
+        } else {
+          btn.className = 'persona-btn p-2 rounded-lg border bg-slate-800/60 border-slate-700 text-slate-300 text-left flex flex-col transition hover:text-white';
+        }
+      }
+    });
   }
 
   renderCrowdChip(element, crowdLevel) {
@@ -279,9 +466,97 @@ export class UIController {
   updateRouteCards(data, activeRouteId) {
     const routes = data.routes || {};
 
-    // 1. Primary EWL Card
-    const ewl = routes.primary_ewl;
-    if (ewl) {
+    const ewlIcon = document.getElementById('ewl-icon');
+    const dtlCard = document.getElementById('card-bypass-dtl');
+    const busCard = document.getElementById('card-bypass-bus10e');
+
+    // 1. Primary Route Card (Persona-Specific Routing)
+    if (routes.primary_arjun) {
+      // Render Arjun's multimodal cycling card
+      const arjun = routes.primary_arjun;
+      const titleEl = document.getElementById('ewl-route-name');
+      if (titleEl) titleEl.textContent = arjun.title || 'Cycle + NEL/CCL Train';
+      const arrivalEl = document.getElementById('ewl-arrival-time');
+      if (arrivalEl) {
+        arrivalEl.className = 'text-sm font-bold text-emerald-400';
+        arrivalEl.textContent = arjun.estimated_arrival;
+      }
+      const metaEl = document.getElementById('ewl-route-meta');
+      if (metaEl) metaEl.textContent = `${arjun.total_duration_min} mins total • ${arjun.status}`;
+
+      if (ewlIcon) ewlIcon.className = 'fa-solid fa-bicycle text-emerald-400';
+
+      const exitChip = document.getElementById('ewl-exit-chip');
+      if (exitChip) exitChip.innerHTML = `<i class="fa-solid fa-bicycle text-[8px]"></i> CYCLE 4M`;
+      const shelterChip = document.getElementById('ewl-shelter-chip');
+      if (shelterChip) shelterChip.textContent = `🚲 ${arjun.sheltered_percent || 40}% SHELTER`;
+      const crowdChip = document.getElementById('ewl-crowd-chip');
+      this.renderCrowdChip(crowdChip, arjun.crowd_level || 'l');
+
+      const delayEl = document.getElementById('ewl-delay-tag');
+      if (delayEl) {
+        delayEl.className = 'text-[10px] text-emerald-400 font-semibold';
+        delayEl.textContent = arjun.rain_active ? 'Rain Adapted' : 'Optimal Cycle Link';
+      }
+
+      this.renderRouteLegs('ewl-legs-container', arjun.legs, 'emerald', {
+        exitStation: 'one-north (CC23)',
+        exitDoor: 'Exit B',
+        exitNote: 'Direct cycling link to Galaxis / Fusionopolis lobby',
+        shelterPercent: arjun.sheltered_percent || 40
+      });
+
+      // Hide Rachel's corridor bypasses for Arjun's direct transit corridor
+      if (dtlCard) dtlCard.classList.add('hidden');
+      if (busCard) busCard.classList.add('hidden');
+
+    } else if (routes.primary_mdm_lim) {
+      // Render Mdm Lim's step-free accessibility card
+      const lim = routes.primary_mdm_lim;
+      const titleEl = document.getElementById('ewl-route-name');
+      if (titleEl) titleEl.textContent = lim.title || 'East-West Line (Step-Free Direct to SGH)';
+      const arrivalEl = document.getElementById('ewl-arrival-time');
+      if (arrivalEl) {
+        arrivalEl.className = 'text-sm font-bold text-blue-400';
+        arrivalEl.textContent = lim.estimated_arrival;
+      }
+      const metaEl = document.getElementById('ewl-route-meta');
+      if (metaEl) metaEl.textContent = `${lim.total_duration_min} mins total • ${lim.status}`;
+
+      if (ewlIcon) ewlIcon.className = 'fa-solid fa-wheelchair text-blue-400';
+
+      const exitChip = document.getElementById('ewl-exit-chip');
+      if (exitChip) exitChip.innerHTML = `<i class="fa-solid fa-elevator text-[8px]"></i> LIFT ACCESS`;
+      const shelterChip = document.getElementById('ewl-shelter-chip');
+      if (shelterChip) shelterChip.textContent = `🛡️ 100% STEP-FREE`;
+      const crowdChip = document.getElementById('ewl-crowd-chip');
+      this.renderCrowdChip(crowdChip, lim.crowd_level || 'l');
+
+      const delayEl = document.getElementById('ewl-delay-tag');
+      if (delayEl) {
+        delayEl.className = 'text-[10px] text-blue-400 font-semibold';
+        delayEl.textContent = lim.has_lift_alert ? 'Lift Advisory' : '100% Barrier-Free';
+      }
+
+      this.renderRouteLegs('ewl-legs-container', lim.legs, 'blue', {
+        exitStation: 'Outram Park (EW16/NE3/TE17)',
+        exitDoor: 'Lift Gantry A',
+        exitNote: 'Barrier-free ramp and lift linkway directly to clinic concourse',
+        shelterPercent: lim.sheltered_percent || 95
+      });
+
+      // Hide Rachel's corridor bypasses for Mdm Lim's accessibility corridor
+      if (dtlCard) dtlCard.classList.add('hidden');
+      if (busCard) busCard.classList.add('hidden');
+
+    } else if (routes.primary_ewl) {
+      // Rachel (Default Corporate Commuter corridor)
+      const ewl = routes.primary_ewl;
+      const titleEl = document.getElementById('ewl-route-name');
+      if (titleEl) titleEl.textContent = ewl.title || 'East-West Line (Direct)';
+
+      if (ewlIcon) ewlIcon.className = 'fa-solid fa-train text-emerald-400';
+
       const ewlArrival = document.getElementById('ewl-arrival-time');
       const ewlDelay = document.getElementById('ewl-delay-tag');
       const ewlMeta = document.getElementById('ewl-route-meta');
@@ -295,6 +570,8 @@ export class UIController {
       if (ewlShelterChip && ewl.sheltered_percent) {
         ewlShelterChip.textContent = `🛡️ ${ewl.sheltered_percent}% SHELTER`;
       }
+      const exitChip = document.getElementById('ewl-exit-chip');
+      if (exitChip) exitChip.innerHTML = `<i class="fa-solid fa-door-open text-[8px]"></i> EXIT B`;
 
       if (ewl.delay_minutes > 0) {
         if (ewlArrival) ewlArrival.className = 'text-sm font-bold text-rose-400';
@@ -311,84 +588,91 @@ export class UIController {
         }
         this.renderCrowdChip(ewlCrowd, ewl.crowd_level || 'm');
       }
-    }
 
-    // 2. Downtown Line Bypass Card
-    const dtl = routes.bypass_dtl;
-    if (dtl) {
-      const dtlArrival = document.getElementById('dtl-arrival-time');
-      const dtlDelay = document.getElementById('dtl-delay-tag');
-      const dtlMeta = document.getElementById('dtl-route-meta');
-      const dtlCrowd = document.getElementById('dtl-crowd-chip');
+      this.renderRouteLegs('ewl-legs-container', ewl.legs, 'emerald', {
+        exitStation: 'Raffles Place (EW14)',
+        exitDoor: 'Exit B',
+        exitNote: 'Direct underground linkway to One Raffles Place basement',
+        shelterPercent: ewl.sheltered_percent || 80
+      });
 
-      if (dtlArrival) dtlArrival.textContent = dtl.estimated_arrival;
-      const dtlShelter = dtl.sheltered_percent ? ` (${dtl.sheltered_percent}% covered)` : '';
-      if (dtlMeta) dtlMeta.textContent = `Tampines DTL → Telok Ayer • ${dtl.total_duration_min} mins${dtlShelter}`;
+      // 2. Downtown Line Bypass Card
+      const dtl = routes.bypass_dtl;
+      if (dtl && dtlCard) {
+        dtlCard.classList.remove('hidden');
+        const dtlArrival = document.getElementById('dtl-arrival-time');
+        const dtlDelay = document.getElementById('dtl-delay-tag');
+        const dtlMeta = document.getElementById('dtl-route-meta');
+        const dtlCrowd = document.getElementById('dtl-crowd-chip');
 
-      const dtlShelterChip = document.getElementById('dtl-shelter-chip');
-      if (dtlShelterChip && dtl.sheltered_percent) {
-        dtlShelterChip.textContent = `🛡️ ${dtl.sheltered_percent}% SHELTER`;
-      }
+        if (dtlArrival) dtlArrival.textContent = dtl.estimated_arrival;
+        const dtlShelter = dtl.sheltered_percent ? ` (${dtl.sheltered_percent}% covered)` : '';
+        if (dtlMeta) dtlMeta.textContent = `Tampines DTL → Telok Ayer • ${dtl.total_duration_min} mins${dtlShelter}`;
 
-      if (dtlDelay) {
-        if (dtl.is_recommended) {
-          dtlDelay.className = 'text-[10px] text-blue-400 font-semibold';
-          dtlDelay.textContent = '★ Recommended Bypass';
-        } else {
-          dtlDelay.className = 'text-[10px] text-slate-400';
-          dtlDelay.textContent = 'Reliable Alternative';
+        const dtlShelterChip = document.getElementById('dtl-shelter-chip');
+        if (dtlShelterChip && dtl.sheltered_percent) {
+          dtlShelterChip.textContent = `🛡️ ${dtl.sheltered_percent}% SHELTER`;
         }
+
+        if (dtlDelay) {
+          if (dtl.is_recommended) {
+            dtlDelay.className = 'text-[10px] text-blue-400 font-semibold';
+            dtlDelay.textContent = '★ Recommended Bypass';
+          } else {
+            dtlDelay.className = 'text-[10px] text-slate-400';
+            dtlDelay.textContent = 'Reliable Alternative';
+          }
+        }
+        this.renderCrowdChip(dtlCrowd, dtl.crowd_level || 'l');
+
+        this.renderRouteLegs('dtl-legs-container', dtl.legs, 'blue', {
+          exitStation: 'Telok Ayer (DT18)',
+          exitDoor: 'Exit B',
+          exitNote: 'Sheltered linkway via Cross St & Church St to desk',
+          shelterPercent: dtl.sheltered_percent || 95
+        });
+      } else if (dtlCard) {
+        dtlCard.classList.add('hidden');
       }
-      this.renderCrowdChip(dtlCrowd, dtl.crowd_level || 'l');
+
+      // 3. Express Bus 10e Card
+      const bus = routes.bypass_bus10e;
+      if (bus && busCard) {
+        busCard.classList.remove('hidden');
+        const busArrival = document.getElementById('bus-arrival-time');
+        const busDelay = document.getElementById('bus-delay-tag');
+        const busMeta = document.getElementById('bus-route-meta');
+        const busCrowd = document.getElementById('bus-crowd-chip');
+
+        if (busArrival) busArrival.textContent = bus.estimated_arrival;
+        if (busMeta) busMeta.textContent = `Expressway via ECP to CBD • ${bus.total_duration_min} mins`;
+
+        const busShelterChip = document.getElementById('bus-shelter-chip');
+        if (busShelterChip && bus.sheltered_percent) {
+          busShelterChip.textContent = `☂️ ${bus.sheltered_percent}% SHELTER`;
+        }
+
+        // Color-coded crowd badge: SEA/l -> Green, SDA/m -> Yellow, LSD/h -> Red
+        this.renderBusCrowdBadge(busCrowd, bus);
+
+        if (busDelay) {
+          const isLive = bus.bus_load_source === 'live';
+          busDelay.className = isLive ? 'text-[10px] text-emerald-400 font-semibold flex items-center justify-end gap-1' : 'text-[10px] text-slate-400';
+          busDelay.innerHTML = isLive
+            ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Live LTA Load`
+            : (bus.status || 'Guaranteed Seat');
+        }
+
+        this.renderRouteLegs('bus-legs-container', bus.legs, 'purple', {
+          exitStation: 'Fullerton Sq Stop (03011)',
+          exitDoor: 'Bus Stop',
+          exitNote: 'Walk via Battery Rd to One Raffles Place',
+          shelterPercent: bus.sheltered_percent || 55
+        });
+      } else if (busCard) {
+        busCard.classList.add('hidden');
+      }
     }
-
-    // 3. Express Bus 10e Card
-    const bus = routes.bypass_bus10e;
-    if (bus) {
-      const busArrival = document.getElementById('bus-arrival-time');
-      const busDelay = document.getElementById('bus-delay-tag');
-      const busMeta = document.getElementById('bus-route-meta');
-      const busCrowd = document.getElementById('bus-crowd-chip');
-
-      if (busArrival) busArrival.textContent = bus.estimated_arrival;
-      if (busMeta) busMeta.textContent = `Expressway via ECP to CBD • ${bus.total_duration_min} mins`;
-
-      const busShelterChip = document.getElementById('bus-shelter-chip');
-      if (busShelterChip && bus.sheltered_percent) {
-        busShelterChip.textContent = `☂️ ${bus.sheltered_percent}% SHELTER`;
-      }
-
-      // Color-coded crowd badge: SEA/l -> Green, SDA/m -> Yellow, LSD/h -> Red
-      this.renderBusCrowdBadge(busCrowd, bus);
-
-      if (busDelay) {
-        const isLive = bus.bus_load_source === 'live';
-        busDelay.className = isLive ? 'text-[10px] text-emerald-400 font-semibold flex items-center justify-end gap-1' : 'text-[10px] text-slate-400';
-        busDelay.innerHTML = isLive
-          ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Live LTA Load`
-          : (bus.status || 'Guaranteed Seat');
-      }
-    }
-
-    // Render turn-by-turn steps inside each card with station exit guidance
-    if (ewl) this.renderRouteLegs('ewl-legs-container', ewl.legs, 'emerald', {
-      exitStation: 'Raffles Place (EW14)',
-      exitDoor: 'Exit B',
-      exitNote: 'Direct underground linkway to One Raffles Place basement',
-      shelterPercent: ewl.sheltered_percent || 80
-    });
-    if (dtl) this.renderRouteLegs('dtl-legs-container', dtl.legs, 'blue', {
-      exitStation: 'Telok Ayer (DT18)',
-      exitDoor: 'Exit B',
-      exitNote: 'Sheltered linkway via Cross St & Church St to desk',
-      shelterPercent: dtl.sheltered_percent || 95
-    });
-    if (bus) this.renderRouteLegs('bus-legs-container', bus.legs, 'purple', {
-      exitStation: 'Fullerton Sq Stop (03011)',
-      exitDoor: 'Bus Stop',
-      exitNote: 'Walk via Battery Rd to One Raffles Place',
-      shelterPercent: bus.sheltered_percent || 55
-    });
 
     this.highlightActiveCard(activeRouteId);
   }
@@ -423,6 +707,10 @@ export class UIController {
         modeIcon = 'fa-bus';
         iconColor = 'text-purple-400';
         badgeHtml = `<span class="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[9px] font-mono">${leg.stops || 0} stops</span>`;
+      } else if (leg.mode === 'CYCLE') {
+        modeIcon = 'fa-bicycle';
+        iconColor = 'text-emerald-400';
+        badgeHtml = `<span class="px-1.5 py-0.2 rounded bg-emerald-950/90 text-emerald-300 border border-emerald-800 text-[9px] font-semibold flex items-center gap-1">🚲 Park Connector Link</span>`;
       } else if (leg.mode === 'WALK') {
         modeIcon = 'fa-person-walking';
         iconColor = 'text-amber-400';
@@ -817,6 +1105,45 @@ export class UIController {
         steps: [
           'Follow overhead signs towards the Thomson-East Coast / North-East Line transfer linkway.',
           'Step onto the <strong>concourse moving travelator connector</strong> (4 min walk, 100% sheltered).'
+        ]
+      };
+    }
+
+    // Interchange transfer: Serangoon (NEL <-> CCL)
+    if (nameLower.includes('serangoon')) {
+      return {
+        landmark: 'Internal Underground Transfer Concourse',
+        shelter: '🛡️ 100% Sheltered & Air-Conditioned',
+        steps: [
+          'Alight from NEL train & follow overhead <strong>yellow Circle Line signs</strong>.',
+          'Take the transfer escalator up to the intermediate concourse level (120m).',
+          'Descend the connecting escalator directly to <strong>Circle Line Platform A/B</strong> (4 min transfer).'
+        ]
+      };
+    }
+
+    // Destination walk: one-north / Biopolis Desk
+    if (nameLower.includes('one-north') || nameLower.includes('biopolis')) {
+      return {
+        landmark: 'Exit A Covered Linkway to Biopolis',
+        shelter: '🛡️ 95% Covered Linkway',
+        steps: [
+          'Alight from CCL train & take escalator to Concourse level.',
+          'Tap out at fare gates and take <strong>Exit A</strong> towards Biopolis / Fusionopolis.',
+          'Follow the covered pedestrian linkway past Galaxis directly to the lobby entrance (350m, 4 min).'
+        ]
+      };
+    }
+
+    // Step-free destination walk: SGH / Outram Park
+    if (nameLower.includes('sgh') || (nameLower.includes('outram') && (nameLower.includes('exit') || nameLower.includes('ramp')))) {
+      return {
+        landmark: 'Barrier-Free Hospital Linkway',
+        shelter: '🛡️ 100% Barrier-Free & Sheltered',
+        steps: [
+          'Alight at Outram Park platform & take the priority lift up to Concourse level.',
+          'Tap out at the accessible wide gantry following signs for <strong>Exit F / SGH Medical Centre</strong>.',
+          'Proceed through the step-free lift linkway directly into the SGH hospital lobby without steps or curbs.'
         ]
       };
     }

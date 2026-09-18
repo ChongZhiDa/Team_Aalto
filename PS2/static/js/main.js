@@ -54,6 +54,12 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     onRecenter: () => {
       mapController.panToCenter();
+    },
+    onSelectPersona: async (pId) => {
+      await switchPersona(pId);
+    },
+    onCyclePersona: async () => {
+      await cyclePersona();
     }
   });
 
@@ -90,18 +96,66 @@ async function loadCommuteStatus(arrivalTime = currentArrivalTime, origin = curr
   }
 }
 
+const PERSONA_CYCLE = ['rachel', 'arjun', 'mdm_lim'];
+
 function updateAppView(data) {
-  if (data.decision.is_delayed) {
+  const routes = data.routes || {};
+  if (routes.primary_arjun) {
+    activeRouteId = 'primary_arjun';
+  } else if (routes.primary_mdm_lim) {
+    activeRouteId = 'primary_mdm_lim';
+  } else if (data.decision?.is_delayed) {
     activeRouteId = 'bypass_dtl';
   } else {
     activeRouteId = 'primary_ewl';
   }
 
   uiController.updateTopBar(data);
+  uiController.updatePersonaDisplay(data);
   uiController.updateAlertBanner(data);
   uiController.updateRouteCards(data, activeRouteId);
+  uiController.highlightActiveCard(activeRouteId);
   uiController.setAllRoutesButtonState(mapController.showAllRoutes);
   mapController.renderLayers(data, activeRouteId);
+
+  // Update top bar persona label if profile exists
+  if (data.profile) {
+    const label = document.getElementById('active-persona-label');
+    if (label) label.textContent = `${data.profile.name} (${data.profile.tag || 'Active'})`;
+  }
+}
+
+async function switchPersona(personaId) {
+  try {
+    const resp = await fetch('/api/persona/select', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ persona_id: personaId })
+    });
+    const res = await resp.json();
+    if (res.data) {
+      currentData = res.data;
+      if (currentData.profile) {
+        currentOrigin = currentData.profile.origin;
+        currentDest = currentData.profile.destination;
+        const originInput = document.getElementById('origin-input');
+        const destInput = document.getElementById('dest-input');
+        if (originInput) originInput.value = currentOrigin;
+        if (destInput) destInput.value = currentDest;
+      }
+      offlineCache.save(currentData);
+      updateAppView(currentData);
+    }
+  } catch (err) {
+    console.error('Failed to switch persona:', err);
+  }
+}
+
+async function cyclePersona() {
+  const currentPersona = (currentData?.persona_id || 'rachel').toLowerCase();
+  const currentIndex = PERSONA_CYCLE.indexOf(currentPersona);
+  const nextIndex = (currentIndex + 1) % PERSONA_CYCLE.length;
+  await switchPersona(PERSONA_CYCLE[nextIndex]);
 }
 
 async function loadAndRenderScenarios() {
