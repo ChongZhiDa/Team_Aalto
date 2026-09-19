@@ -1,0 +1,254 @@
+/* Mobile-First Custom Styles for Rachel's Commuter Companion */
+
+:root {
+  --color-ewl: #009645;
+  --color-dtl: #005EC4;
+  --color-disruption: #EF4444;
+}
+
+body {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Custom Leaflet Map Overrides */
+.leaflet-container {
+  background: #0f172a !important; /* Dark Slate to match UI */
+  font-family: inherit;
+}
+
+/* Custom Tile Filter for Sleek Modern Look */
+.dark-tiles .leaflet-tile {
+  filter: brightness(0.85) invert(0.9) contrast(1.1) hue-rotate(185deg);
+}
+
+/* Leaflet Attribution Bar styling */
+.leaflet-control-attribution {
+  background: rgba(15, 23, 42, 0.85) !important;
+  color: #94a3b8 !important;
+  font-size: 9px !important;
+  padding: 2px 6px !important;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+}
+
+.leaflet-control-attribution a {
+  color: #38bdf8 !important;
+  text-decoration: none;
+}
+
+/* Station Marker Pin */
+.station-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+}
+
+.pin-ewl {
+  background-color: var(--color-ewl);
+}
+
+.pin-dtl {
+  background-color: var(--color-dtl);
+}
+
+.pin-disrupted {
+  background-color: var(--color-disruption);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.9);
+  animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+/* Active Route Highlight Card */
+.route-card.active-route {
+  border-color: #3b82f6 !important;
+  background-color: rgba(30, 41, 59, 0.9) !important;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+@media (max-width: 640px) {
+  #homepage-overlay {
+    padding: 0.25rem 0.45rem 0.15rem;
+    gap: 0.25rem;
+  }
+
+  #source-badge,
+  #homepage-notification-balloon,
+  #simulation-clock-btn,
+  #affected-routes-btn,
+  #scheduled-routes-home-btn,
+  #ai-meta-badge,
+  #pcd-forecast-banner,
+  #alert-action-row,
+  #location-hint-bar,
+  #btn-toggle-all-routes,
+  #map-legend {
+    display: none !important;
+  }
+
+  #homepage-quick-controls {
+    flex: 1;
+    justify-content: flex-end;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  #homepage-quick-controls > button,
+  #homepage-quick-controls > div > button {
+    padding-left: 0.2rem;
+    padding-right: 0.2rem;
+    font-size: 8px;
+  }
+
+  #homepage-quick-controls #persona-toggle-btn {
+    max-width: 4.5rem;
+  }
+
+  #homepage-quick-controls #scenario-toggle-btn {
+    width: 1.8rem;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  #homepage-quick-controls #scenario-toggle-btn span {
+    display: none;
+  }
+
+  #simulation-clock-label,
+  #active-persona-label {
+    max-width: 3.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #proactive-alert-banner {
+    width: 100%;
+    max-width: none;
+    padding: 0.4rem 0.5rem;
+  }
+
+  #alert-status-label,
+  #noise-filter-badge {
+    display: none !important;
+  }
+
+  #alert-headline {
+    font-size: 10px;
+    line-height: 1.25;
+  }
+
+  #alert-detail {
+    display: none !important;
+  }
+
+  #origin-input,
+  #dest-input {
+    font-size: 11px;
+    padding-top: 0.4rem;
+    padding-bottom: 0.4rem;
+  }
+
+  #bottom-sheet {
+    max-height: 26vh;
+    min-height: 0;
+    padding: 0.45rem 0.45rem 0.25rem;
+  }
+
+  #sheet-body {
+    gap: 0.35rem;
+  }
+
+  #route-cards-list {
+    min-width: 0;
+    gap: 0.25rem;
+  }
+
+  .route-card {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    padding: 0.45rem 0.5rem;
+  }
+
+  .route-card .w-8 {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
+
+  #ewl-crowd-chip,
+  #ewl-exit-chip,
+  #ewl-shelter-chip,
+  #dtl-crowd-chip,
+  #dtl-exit-chip,
+  #dtl-shelter-chip,
+  #bus-crowd-chip,
+  #bus-exit-chip,
+  #bus-shelter-chip,
+  #arbitrary-graph-chip,
+  #arbitrary-shelter-chip {
+    display: none !important;
+  }
+
+  .route-card .font-semibold,
+  .route-card .text-xs,
+  .route-card .text-[11px],
+  .route-card .text-sm,
+  .route-card .text-[10px] {
+    line-height: 1.2;
+  }
+
+  .route-card > div:first-child {
+    gap: 0.35rem;
+  }
+
+  .route-card .flex-wrap {
+    gap: 0.15rem;
+  }
+
+  #map-legend {
+    display: none !important;
+  }
+
+  .leaflet-control-attribution {
+    font-size: 7px !important;
+    max-width: 95vw;
+  }
+
+  #persona-drawer > div {
+    max-height: 92vh;
+    padding: 0.75rem;
+  }
+}
+
