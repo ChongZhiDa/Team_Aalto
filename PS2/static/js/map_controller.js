@@ -156,6 +156,32 @@ export class MapController {
     return this.showAllRoutes;
   }
 
+  updateLegend(routeData = {}, showDisruption = false) {
+    const linesEl = document.getElementById('map-legend-lines');
+    const statusEl = document.getElementById('map-legend-status');
+    if (!linesEl || !statusEl) return;
+
+    const colors = {
+      EWL: '#009645', NSL: '#D42E12', NEL: '#9900AA', CCL: '#FA9E0D',
+      DTL: '#005EC4', TEL: '#9D5B25', BUS: '#10b981', WALK: '#38bdf8', CYCLE: '#22c55e'
+    };
+    const lines = routeData.lines_used || [];
+    const modes = (routeData.legs || []).map(leg => String(leg.mode || '').toUpperCase());
+    const entries = [
+      ...lines.map(line => ({ label: line, color: colors[line] || '#6366f1' })),
+      ...(modes.includes('BUS') ? [{ label: 'Bus', color: colors.BUS }] : []),
+      ...(modes.includes('WALK') ? [{ label: 'Walk', color: colors.WALK }] : [])
+    ];
+    const uniqueEntries = entries.filter((entry, index, all) => all.findIndex(item => item.label === entry.label) === index);
+    linesEl.innerHTML = uniqueEntries.length
+      ? uniqueEntries.map(entry => `<span class="inline-block w-3 h-1 rounded" style="background-color: ${entry.color}"></span><span>${entry.label}</span>`).join('')
+      : '<span class="inline-block w-3 h-1 rounded bg-slate-500"></span><span>Route</span>';
+    statusEl.innerHTML = showDisruption
+      ? '<span class="inline-block w-3 h-1 bg-rose-500 border border-dashed border-rose-300"></span><span>Disrupted Corridor</span>'
+      : '';
+    statusEl.classList.toggle('hidden', !showDisruption);
+  }
+
   init() {
     this.map = L.map(this.containerId, {
       zoomControl: false,
@@ -223,6 +249,8 @@ export class MapController {
     const layers = data.map_layers;
     const isEwlDisrupted = data.decision.is_delayed;
     const showAll = this.showAllRoutes;
+    const activeRoute = data.routes?.[activeRouteId] || data.routes?.primary_ewl || {};
+    this.updateLegend(activeRoute, isEwlDisrupted && activeRouteId === 'primary_ewl');
 
     // --- Custom Door-to-Door Route Rendering ---
     if (layers && layers.is_custom) {
@@ -588,6 +616,7 @@ export class MapController {
   renderArbitraryRoute(routeData) {
     if (!this.map || !this.layersGroup) return;
     this.layersGroup.clearLayers();
+    this.updateLegend(routeData);
 
     const stations = routeData.stations || routeData.route_stations || [];
     const polylineCoords = stations.length >= 2

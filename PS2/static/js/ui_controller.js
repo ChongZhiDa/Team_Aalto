@@ -1284,9 +1284,20 @@ export class UIController {
     }
   }
 
-  renderArbitraryRouteCard(routeData) {
-    const card = document.getElementById('card-arbitrary-route');
+  renderArbitraryRouteCard(routeData, searchedRoutes = [routeData]) {
+    let card = document.getElementById('card-arbitrary-route');
+    if (!card) {
+      const container = document.getElementById('route-cards-list');
+      if (container && this.defaultRouteCardsHtml) {
+        container.innerHTML = this.defaultRouteCardsHtml;
+        card = document.getElementById('card-arbitrary-route');
+      }
+    }
     if (!card) return;
+
+    ['card-primary-ewl', 'card-bypass-dtl', 'card-bypass-bus10e'].forEach((id) => {
+      document.getElementById(id)?.classList.add('hidden');
+    });
 
     card.classList.remove('hidden');
 
@@ -1296,6 +1307,7 @@ export class UIController {
     const statusEl = document.getElementById('arbitrary-status-tag');
     const shelterChip = document.getElementById('arbitrary-shelter-chip');
     const graphChip = document.getElementById('arbitrary-graph-chip');
+    const alternativesContainer = document.getElementById('arbitrary-alternatives-container');
 
     if (titleEl) titleEl.textContent = routeData.title || 'Arbitrary Graph Route';
     if (metaEl) metaEl.textContent = `${routeData.status || ''} • ${routeData.total_duration_min} mins total`;
@@ -1306,6 +1318,27 @@ export class UIController {
     }
     if (graphChip && routeData.lines_used) {
       graphChip.textContent = routeData.lines_used.join(' → ');
+    }
+
+    if (alternativesContainer) {
+      const alternatives = searchedRoutes.slice(1);
+      alternativesContainer.innerHTML = alternatives.length
+        ? `<div class="pt-2 mt-1 border-t border-indigo-800/60 text-[10px] text-indigo-300 font-semibold">ALTERNATIVE ROUTES</div>${alternatives.map((alternative, index) => `
+            <button type="button" class="searched-route-option w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-slate-900/50 hover:bg-indigo-900/50 border border-slate-700/70 hover:border-indigo-500/70 text-left transition" data-route-index="${index + 1}">
+              <span class="min-w-0 truncate text-[11px] text-slate-200">${this.escapeHtml(alternative.lines_used?.join(' → ') || alternative.title || 'Alternative route')}</span>
+              <span class="shrink-0 text-[10px] text-indigo-300">${alternative.total_duration_min} min</span>
+            </button>`).join('')}`
+        : '';
+
+      alternativesContainer.querySelectorAll('.searched-route-option').forEach((option) => {
+        option.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const routeIndex = Number(option.dataset.routeIndex);
+          if (this.handlers.onSelectSearchedRoute) {
+            this.handlers.onSelectSearchedRoute(routeIndex);
+          }
+        });
+      });
     }
 
     // Render turn-by-turn legs
