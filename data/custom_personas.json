@@ -6,8 +6,8 @@
       "name": "Rachel",
       "persona": "Fixed-Schedule Corporate Commuter",
       "tag": "EWL Direct Corridor",
-      "origin": "Blk 230 Tampines St 21",
-      "destination": "One Raffles Place, CBD",
+      "origin": "Tampines Mall",
+      "destination": "NTU (Nanyang Technological University)",
       "departure_time": "07:40 AM",
       "proactive_check_time": "07:20 AM",
       "deadline_arrival": "08:45 AM",
@@ -41,7 +41,8 @@
       "advice_max_chars": 140,
       "transfer_station": null,
       "alternative_route_name": "Downtown Line",
-      "alternative_recommendation": "BYPASS_DTL"
+      "alternative_recommendation": "BYPASS_DTL",
+      "scheduled_routes": []
     },
     {
       "id": "arjun",
@@ -83,7 +84,8 @@
       "advice_max_chars": 140,
       "transfer_station": "CC13",
       "alternative_route_name": null,
-      "alternative_recommendation": "ALTERNATIVE_ROUTE"
+      "alternative_recommendation": "ALTERNATIVE_ROUTE",
+      "scheduled_routes": []
     },
     {
       "id": "mdm_lim",
@@ -125,7 +127,8 @@
       "advice_max_chars": 140,
       "transfer_station": null,
       "alternative_route_name": null,
-      "alternative_recommendation": "ALTERNATIVE_ROUTE"
+      "alternative_recommendation": "ALTERNATIVE_ROUTE",
+      "scheduled_routes": []
     }
   ]
 }

@@ -76,6 +76,13 @@
           </div>
         </div>
         <div class="relative">
+          <button id="affected-routes-btn" type="button" class="hidden bg-rose-700/95 hover:bg-rose-600 border border-rose-400 px-2.5 py-1.5 rounded-full shadow text-[11px] text-white font-semibold items-center gap-1.5 transition" title="Compare affected route and recommended reroute">
+            <i class="fa-solid fa-route"></i>
+            <span class="hidden sm:inline">Reroute</span>
+          </button>
+          <div id="affected-routes-panel" class="hidden absolute right-0 top-full mt-2 z-50 w-[min(24rem,calc(100vw-1.5rem))] bg-slate-900/95 backdrop-blur-md border border-rose-700 rounded-xl p-2.5 shadow-2xl"></div>
+        </div>
+        <div class="relative">
           <button id="scheduled-routes-home-btn" type="button" class="bg-slate-900/90 backdrop-blur-md hover:bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-full shadow text-[11px] text-amber-200 flex items-center gap-1.5 transition" title="View scheduled routes">
             <i class="fa-solid fa-calendar-days text-amber-400"></i>
             <span class="hidden sm:inline">Plans</span>
@@ -753,6 +760,6 @@
   </div>
 
   <!-- App Modular Scripts (Teammate A) -->
-  <script type="module" src="/static/js/main.js?v=20260919i"></script>
+  <script type="module" src="/static/js/main.js?v=20260919j"></script>
 </body>
 </html>

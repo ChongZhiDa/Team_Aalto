@@ -243,6 +243,10 @@ export class UIController {
       if (this.handlers.onSimulationChange) this.handlers.onSimulationChange(dateInput?.value, timeInput?.value);
     });
 
+    document.getElementById('affected-routes-btn')?.addEventListener('click', () => {
+      document.getElementById('affected-routes-panel')?.classList.toggle('hidden');
+    });
+
     // Threshold dropdown
     document.getElementById('select-noise-threshold')?.addEventListener('change', (e) => {
       if (this.handlers.onThresholdChange) this.handlers.onThresholdChange(e.target.value);
@@ -1876,13 +1880,34 @@ export class UIController {
     const notifications = result.notifications || [];
     const alertBadge = document.getElementById('scheduled-routes-home-alert');
     const scheduledAlert = document.getElementById('scheduled-route-alert');
+    const affectedButton = document.getElementById('affected-routes-btn');
+    const affectedPanel = document.getElementById('affected-routes-panel');
     if (!notifications.length) {
       box?.classList.add('hidden');
       document.getElementById('homepage-notification-balloon')?.classList.add('hidden');
       alertBadge?.classList.add('hidden');
       alertBadge?.classList.remove('flex');
       scheduledAlert?.classList.add('hidden');
+      affectedButton?.classList.add('hidden');
+      affectedButton?.classList.remove('flex');
+      affectedPanel?.classList.add('hidden');
       return;
+    }
+    affectedButton?.classList.remove('hidden');
+    affectedButton?.classList.add('flex');
+    if (affectedPanel) {
+      affectedPanel.innerHTML = `<div class="flex items-center justify-between border-b border-rose-800 pb-2 mb-2"><strong class="text-[11px] text-white">Affected scheduled route</strong><span class="text-[9px] text-rose-300">Compare routes</span></div>${notifications.map((item, index) => {
+        const replacement = item.replacement_route;
+        const currentLines = item.affected_route?.lines_used?.join(' → ') || 'Current planned route';
+        const newLines = replacement?.lines_used?.join(' → ') || replacement?.line || 'Recommended reroute';
+        return `<div class="mb-2 rounded-lg border border-slate-700 bg-slate-800/80 p-2"><div class="text-[10px] font-bold text-rose-200">${this.escapeHtml(item.label)}</div><div class="mt-1 text-[10px] text-slate-300">Current: ${this.escapeHtml(currentLines)} · ${item.affected_route?.duration_min || '--'} min</div><div class="text-[10px] text-cyan-200">Recommended: ${this.escapeHtml(newLines)} · ${replacement?.total_duration_min || '--'} min</div><div class="mt-1 text-[9px] text-slate-400">New timing: ${this.escapeHtml(item.replacement_departure || '--')} → ${this.escapeHtml(item.replacement_arrival || item.arrival_time || '--')}</div><div class="mt-2 grid grid-cols-2 gap-1.5"><button type="button" class="affected-view-current rounded bg-slate-700 px-2 py-1 text-[9px] text-white" data-notification-index="${index}">View current plan</button><button type="button" class="affected-view-reroute rounded bg-rose-700 px-2 py-1 text-[9px] text-white font-semibold" data-notification-index="${index}">View recommended</button></div></div>`;
+      }).join('')}`;
+      affectedPanel.querySelectorAll('.affected-view-current').forEach((button) => {
+        button.addEventListener('click', () => this.handlers.onSelectAffectedRoute?.(notifications[Number(button.dataset.notificationIndex)], 'current'));
+      });
+      affectedPanel.querySelectorAll('.affected-view-reroute').forEach((button) => {
+        button.addEventListener('click', () => this.handlers.onSelectAffectedRoute?.(notifications[Number(button.dataset.notificationIndex)], 'replacement'));
+      });
     }
     if (alertBadge) {
       alertBadge.textContent = notifications.length > 9 ? '9+' : String(notifications.length);

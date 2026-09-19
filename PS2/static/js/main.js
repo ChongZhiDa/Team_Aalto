@@ -5,9 +5,9 @@
  * Owned by: Teammate A (Frontend & Mobile UX)
  */
 
-import { MapController } from './map_controller.js?v=20260919i';
-import { UIController } from './ui_controller.js?v=20260919i';
-import { offlineCache } from './offline_cache.js?v=20260919i';
+import { MapController } from './map_controller.js?v=20260919j';
+import { UIController } from './ui_controller.js?v=20260919j';
+import { offlineCache } from './offline_cache.js?v=20260919j';
 
 let currentData = null;
 let currentArbitraryRoute = null;
@@ -85,6 +85,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     },
     onSelectNotificationRoute: async (notification) => {
       await loadNotificationReplacement(notification);
+    },
+    onSelectAffectedRoute: async (notification, routeType) => {
+      if (routeType === 'current') {
+        await loadScheduledRoute({
+          origin: notification.origin,
+          destination: notification.destination,
+          arrival_time: notification.arrival_time,
+        });
+      } else {
+        await loadNotificationReplacement(notification);
+      }
+      document.getElementById('affected-routes-panel')?.classList.add('hidden');
     },
     onRecenter: () => {
       mapController.panToCenter();
