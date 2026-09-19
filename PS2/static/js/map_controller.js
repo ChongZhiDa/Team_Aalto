@@ -284,10 +284,10 @@ export class MapController {
       // 4a. Draw alternate custom MRT track if active or if user clicked 'Show Other Routes'
       if (layers.alt_track && layers.alt_track.length >= 2 && (showAll || isAltActive)) {
         L.polyline(layers.alt_track, {
-          color: isAltActive ? '#6366f1' : '#a855f7',
-          weight: isAltActive ? 6 : 3.5,
-          dashArray: showAll && !isAltActive ? '6, 6' : null,
-          opacity: isAltActive ? 1.0 : 0.7,
+          color: '#6366f1',
+          weight: isAltActive ? 7 : (showAll ? 6 : 3.5),
+          dashArray: null,
+          opacity: isAltActive ? 1.0 : (showAll ? 0.95 : 0.7),
           lineCap: 'round',
           lineJoin: 'round'
         }).addTo(this.layersGroup).bindPopup(`<b>Alternative MRT Route</b><br>${data.routes?.bypass_dtl?.title || 'Alternative Route'}`);
@@ -299,10 +299,10 @@ export class MapController {
       // 4b. Draw public bus track if active or if user clicked 'Show Other Routes'
       if (layers.bus10e_track && layers.bus10e_track.length >= 2 && (showAll || isBusActive)) {
         L.polyline(layers.bus10e_track, {
-          color: isBusActive ? '#8b5cf6' : '#a78bfa',
-          weight: isBusActive ? 6 : 3.5,
-          dashArray: showAll && !isBusActive ? '5, 5' : null,
-          opacity: isBusActive ? 1.0 : 0.7,
+          color: '#8b5cf6',
+          weight: isBusActive ? 7 : (showAll ? 6 : 3.5),
+          dashArray: null,
+          opacity: isBusActive ? 1.0 : (showAll ? 0.95 : 0.7),
           lineCap: 'round',
           lineJoin: 'round'
         }).addTo(this.layersGroup).bindPopup(`<b>${layers.bus_title || 'Public Bus Service'}</b><br>${data.routes?.bypass_bus10e?.title || 'Bus Route'}`);
@@ -313,14 +313,18 @@ export class MapController {
 
       // 4c. Draw primary custom track
       if (showAll || isPrimaryActive) {
+        const primaryWeight = showAll ? 2.5 : 6;
+        const primaryDash = showAll ? '4, 8' : null;
+        const primaryOpacity = showAll ? 0.25 : 0.95;
+
         if (layers.custom_tracks && layers.custom_tracks.length > 0) {
           layers.custom_tracks.forEach(track => {
             if (track.coords && track.coords.length >= 2) {
               L.polyline(track.coords, {
                 color: track.color || '#2563eb',
-                weight: isPrimaryActive ? 6 : 3.5,
-                dashArray: showAll && !isPrimaryActive ? '6, 6' : null,
-                opacity: isPrimaryActive ? 0.95 : 0.6,
+                weight: primaryWeight,
+                dashArray: primaryDash,
+                opacity: primaryOpacity,
                 lineCap: 'round',
                 lineJoin: 'round'
               }).addTo(this.layersGroup).bindPopup(`<b>${track.line || 'MRT'} Line (Primary)</b><br>${layers.route_summary || 'Transit Segment'}`);
@@ -333,9 +337,9 @@ export class MapController {
           const trackColor = layers.track_color || '#2563eb';
           L.polyline(layers.custom_track, {
             color: trackColor,
-            weight: isPrimaryActive ? 6 : 3.5,
-            dashArray: showAll && !isPrimaryActive ? '6, 6' : null,
-            opacity: isPrimaryActive ? 0.95 : 0.6,
+            weight: primaryWeight,
+            dashArray: primaryDash,
+            opacity: primaryOpacity,
             lineCap: 'round',
             lineJoin: 'round'
           }).addTo(this.layersGroup).bindPopup(`<b>Transit Route (Primary)</b><br>${layers.route_summary || 'MRT Route'}`);
@@ -412,7 +416,7 @@ export class MapController {
           color: '#38bdf8',
           weight: 4.5,
           dashArray: '6, 6',
-          opacity: 0.95
+          opacity: showAll && isEwlActive && key.includes('ewl') ? 0.35 : 0.95
         }).addTo(this.layersGroup).bindPopup(`
           <div class="p-1.5 text-xs">
             <strong class="text-blue-600 flex items-center gap-1">
@@ -429,23 +433,28 @@ export class MapController {
       }
     });
 
-    // 2. DTL Bypass track
+    // 2. DTL Bypass track (bolded when showing all routes)
     if (showAll || isDtlActive) {
       const dtlPoly = L.polyline(layers.dtl_track, {
         color: '#005EC4',
-        weight: isDtlActive ? 6 : 3,
-        opacity: isDtlActive ? 1.0 : 0.4,
+        weight: isDtlActive ? 6 : (showAll ? 5.5 : 3),
+        opacity: isDtlActive ? 1.0 : (showAll ? 0.95 : 0.4),
       }).addTo(this.layersGroup);
       dtlPoly.bindPopup('<b>Downtown Line (DTL)</b><br>Reliable alternative bypass');
     }
 
-    // 3. EWL Primary Track
+    // 3. EWL Primary Track (transparent & dashed when showing all routes)
     if (showAll || isEwlActive) {
+      const ewlWeight = showAll && !isEwlActive ? 2.5 : (showAll ? 2.5 : 6);
+      const ewlOpacity = showAll ? 0.25 : (isEwlActive ? 1.0 : 0.4);
+      const ewlDash = showAll ? '4, 8' : null;
+
       if (!isEwlDisrupted) {
         const ewlPoly = L.polyline(layers.ewl_track, {
           color: '#009645',
-          weight: isEwlActive ? 6 : 3,
-          opacity: isEwlActive ? 1.0 : 0.4,
+          weight: ewlWeight,
+          dashArray: ewlDash,
+          opacity: ewlOpacity,
         }).addTo(this.layersGroup);
         ewlPoly.bindPopup('<b>East-West Line (EWL)</b><br>Operating normally');
       } else {
@@ -454,14 +463,14 @@ export class MapController {
         const disruptedCoords = ewlStations.slice(3, 11).map(s => s.coords);
         const postCoords = ewlStations.slice(10).map(s => s.coords);
 
-        L.polyline(preCoords, { color: '#009645', weight: isEwlActive ? 5 : 3, opacity: isEwlActive ? 0.9 : 0.4 }).addTo(this.layersGroup);
-        L.polyline(postCoords, { color: '#009645', weight: isEwlActive ? 5 : 3, opacity: isEwlActive ? 0.9 : 0.4 }).addTo(this.layersGroup);
+        L.polyline(preCoords, { color: '#009645', weight: ewlWeight, dashArray: ewlDash, opacity: ewlOpacity }).addTo(this.layersGroup);
+        L.polyline(postCoords, { color: '#009645', weight: ewlWeight, dashArray: ewlDash, opacity: ewlOpacity }).addTo(this.layersGroup);
 
         const disruptedPoly = L.polyline(disruptedCoords, {
           color: '#EF4444',
-          weight: isEwlActive ? 6 : 4,
+          weight: showAll ? 4 : (isEwlActive ? 6 : 4),
           dashArray: '6, 8',
-          opacity: 1.0,
+          opacity: showAll ? 0.4 : 1.0,
           lineCap: 'round'
         }).addTo(this.layersGroup);
 
@@ -473,13 +482,13 @@ export class MapController {
       }
     }
 
-    // 4. Express Bus 10e Track
+    // 4. Express Bus 10e Track (bolded when showing all routes)
     if (layers.bus10e_track && (showAll || isBusActive)) {
       L.polyline(layers.bus10e_track, {
         color: '#8b5cf6',
-        weight: isBusActive ? 6 : 3,
-        dashArray: isBusActive ? null : '4, 6',
-        opacity: isBusActive ? 1.0 : 0.6
+        weight: isBusActive ? 6 : (showAll ? 5.5 : 3),
+        dashArray: isBusActive ? null : (showAll ? null : '4, 6'),
+        opacity: isBusActive ? 1.0 : (showAll ? 0.95 : 0.6)
       }).addTo(this.layersGroup).bindPopup('<b>Express Bus 10e</b><br>Direct ECP corridor');
     }
 

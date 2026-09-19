@@ -178,18 +178,21 @@ export class UIController {
       const body = document.getElementById('sheet-body');
       const footer = document.getElementById('bottom-sheet');
       const icon = document.getElementById('sheet-toggle-icon');
+      const text = document.getElementById('sheet-toggle-text');
       if (!body || !footer) return;
       sheetMinimised = !sheetMinimised;
       if (sheetMinimised) {
         body.classList.add('hidden');
         footer.classList.remove('max-h-[24rem]', 'md:max-h-96', 'overflow-y-auto');
-        footer.classList.add('max-h-10', 'overflow-hidden');
-        if (icon) { icon.className = 'fa-solid fa-chevron-up'; }
+        footer.classList.add('max-h-12', 'overflow-hidden');
+        if (icon) { icon.className = 'fa-solid fa-chevron-up text-[9px]'; }
+        if (text) { text.textContent = 'Expand'; }
       } else {
         body.classList.remove('hidden');
-        footer.classList.remove('max-h-10', 'overflow-hidden');
+        footer.classList.remove('max-h-12', 'overflow-hidden');
         footer.classList.add('max-h-[24rem]', 'md:max-h-96', 'overflow-y-auto');
-        if (icon) { icon.className = 'fa-solid fa-chevron-down'; }
+        if (icon) { icon.className = 'fa-solid fa-chevron-down text-[9px]'; }
+        if (text) { text.textContent = 'Minimise'; }
       }
       // Notify map to recalculate its visible size after transition
       setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 320);

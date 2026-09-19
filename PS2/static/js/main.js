@@ -5,9 +5,9 @@
  * Owned by: Teammate A (Frontend & Mobile UX)
  */
 
-import { MapController } from './map_controller.js?v=20260919f';
-import { UIController } from './ui_controller.js?v=20260919f';
-import { offlineCache } from './offline_cache.js?v=20260919f';
+import { MapController } from './map_controller.js?v=20260919i';
+import { UIController } from './ui_controller.js?v=20260919i';
+import { offlineCache } from './offline_cache.js?v=20260919i';
 
 let currentData = null;
 let currentArbitraryRoute = null;
