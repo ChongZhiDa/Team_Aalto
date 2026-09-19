@@ -38,10 +38,10 @@
   <!-- ================================================================= -->
   <!-- GOOGLE MAPS FLOATING TOP PANEL: BRANDING, SEARCH, & TIMING        -->
   <!-- ================================================================= -->
-  <div class="absolute top-0 left-0 right-0 z-30 p-3 flex flex-col gap-2 pointer-events-none max-w-lg mx-auto">
+  <div class="absolute top-0 left-0 right-0 z-30 p-3 pointer-events-none flex flex-col gap-2 max-w-5xl mx-auto">
     
     <!-- Top Branding & Status Pill Bar -->
-    <div class="flex items-center justify-between pointer-events-auto">
+    <div class="flex items-center justify-between pointer-events-auto w-full">
       
       <!-- App Identity: StationBuddy -->
       <div class="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2">
@@ -67,186 +67,148 @@
       </div>
     </div>
 
-    <!-- Universal Search Box Card (Google Maps Style) -->
-    <div class="bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-2xl p-3 shadow-2xl pointer-events-auto flex flex-col gap-2.5">
+    <!-- Main Floating Panels Row: On-Track Bubble on the LEFT, Search Bubble on the RIGHT -->
+    <div class="flex flex-col md:flex-row items-stretch md:items-start justify-center gap-3 w-full">
       
-      <!-- Origin & Destination Inputs with Connector Line -->
-      <div class="flex items-center gap-2.5">
+      <!-- ================================================================= -->
+      <!-- PROACTIVE TRAFFIC DETOUR / INCIDENT BANNER (On-Track Bubble - Left) -->
+      <!-- ================================================================= -->
+      <div id="proactive-alert-banner" class="pointer-events-auto rounded-2xl p-3 border shadow-2xl transition-all duration-300 bg-emerald-950/90 border-emerald-700/80 backdrop-blur-md w-full md:w-80 lg:w-96 shrink-0">
         
-        <!-- Pin Column -->
-        <div class="flex flex-col items-center justify-between h-14 py-1 shrink-0">
-          <div class="w-3 h-3 rounded-full border-2 border-blue-500 bg-blue-500/30"></div>
-          <div class="w-0.5 h-6 bg-slate-700"></div>
-          <div class="w-3 h-3 rounded-full border-2 border-rose-500 bg-rose-500"></div>
-        </div>
-
-        <!-- Inputs Column -->
-        <div class="flex-1 flex flex-col gap-1.5">
-          <!-- Origin -->
-          <div class="relative flex items-center">
-            <input 
-              id="origin-input" 
-              type="text" 
-              list="mrt-stations-datalist"
-              value="Blk 230 Tampines St 21 (Home)" 
-              placeholder="Enter 6-digit postal (e.g. 529538), address, or station..." 
-              autocomplete="off"
-              class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
-            />
-            <div id="origin-suggestions" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-800/80"></div>
+        <div class="flex items-center justify-between mb-1">
+          <div class="flex items-center gap-1.5">
+            <span id="alert-icon" class="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px]">
+              <i class="fa-solid fa-check"></i>
+            </span>
+            <span id="alert-status-label" class="text-[11px] font-bold uppercase tracking-wider text-emerald-400">On Schedule</span>
           </div>
-          <!-- Destination -->
-          <div class="relative flex items-center">
-            <input 
-              id="dest-input" 
-              type="text" 
-              list="mrt-stations-datalist"
-              value="One Raffles Place, CBD (Office)" 
-              placeholder="Enter 6-digit postal (e.g. 048624), address, or station..." 
-              autocomplete="off"
-              class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
-            />
-            <div id="dest-suggestions" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-800/80"></div>
+          <div class="flex items-center gap-1.5">
+            <span id="ai-meta-badge" class="hidden text-[9px] px-2 py-0.5 bg-indigo-950 text-indigo-300 border border-indigo-700 rounded-full font-mono shadow-sm"></span>
+            <span id="noise-filter-badge" class="text-[10px] px-1.5 py-0.5 bg-slate-800 text-slate-400 rounded border border-slate-700 font-mono">
+              Noise Filter: &lt;15m Silent
+            </span>
           </div>
         </div>
 
-        <!-- Action Buttons Column (Swap & Search) -->
-        <div class="flex flex-col gap-1.5 shrink-0">
-          <button id="btn-swap-locations" type="button" title="Swap Origin and Destination" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition">
-            <i class="fa-solid fa-arrow-right-arrow-left text-xs rotate-90"></i>
-          </button>
-          <button id="btn-search-route" type="button" title="Find Graph Route (/api/route)" class="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white flex items-center justify-center shadow transition">
-            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+        <!-- Pre-emptive Crowd Departure Warning -->
+        <div id="pcd-forecast-banner" class="hidden mb-1.5 p-2 rounded-lg bg-amber-950/80 border border-amber-600/80 text-[11px] text-amber-200 flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-people-group text-amber-400 shrink-0"></i>
+          <span id="pcd-forecast-text" class="leading-snug"></span>
+        </div>
+
+        <div id="alert-headline" class="text-xs font-bold text-white leading-tight mb-0.5">
+          All EWL trains operating normally. Head out at 07:40 AM.
+        </div>
+        <div id="alert-detail" class="text-[11px] text-slate-300 leading-snug">
+          Estimated desk arrival at 08:24 AM (21 mins buffer before 08:45 deadline).
+        </div>
+
+        <!-- One-Tap Action Button when Disrupted -->
+        <div id="alert-action-row" class="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between hidden">
+          <span class="text-[11px] text-rose-300 font-medium flex items-center gap-1">
+            <i class="fa-solid fa-triangle-exclamation text-rose-400"></i> Meeting Risk
+          </span>
+          <button id="btn-accept-bypass" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold text-xs rounded-lg shadow flex items-center gap-1.5 transition">
+            <span>Switch to Downtown Line Bypass</span>
+            <i class="fa-solid fa-arrow-right text-[10px]"></i>
           </button>
         </div>
+
       </div>
 
-      <!-- Real-Time Geocoding & Postal Detection Status Bar -->
-      <div id="location-hint-bar" class="hidden flex items-center justify-between text-[10px] text-blue-300 px-2 py-0.5 bg-blue-950/60 rounded border border-blue-800/60 transition">
-        <span id="location-hint-text" class="flex items-center gap-1"><i class="fa-solid fa-location-crosshairs text-blue-400"></i> Postal Geocoding Ready</span>
-        <span class="text-[9px] text-slate-400 font-mono">OneMap / LTA Geocoded</span>
-      </div>
-
-      <!-- Datalist for fast Singapore MRT station & 6-digit postal code suggestions -->
-      <datalist id="mrt-stations-datalist">
-        <!-- Singapore Postal Codes (6-Digit) & Key Landmarks -->
-        <option value="529538 (Tampines MRT - EW2/DT32)"></option>
-        <option value="048624 (One Raffles Place - EW14/NS26)"></option>
-        <option value="520230 (Blk 230 Tampines St 21)"></option>
-        <option value="069042 (Cross Street Exchange / Telok Ayer)"></option>
-        <option value="138607 (Fusionopolis, one-north)"></option>
-        <option value="609606 (Westgate / Jurong East)"></option>
-        <option value="579837 (Junction 8 / Bishan)"></option>
-        <option value="188021 (Bugis Junction)"></option>
-        <option value="039393 (Suntec City / Promenade)"></option>
-        <option value="049318 (Fullerton Square)"></option>
-        <option value="529536 (Tampines Mall)"></option>
-        <option value="119077 (National University of Singapore - NUS)"></option>
-        <option value="639798 (Nanyang Technological University - NTU)"></option>
-        <option value="048582 (Marina Bay Financial Centre)"></option>
-        <option value="738343 (Woodlands Civic Centre)"></option>
-        <!-- Canonical MRT Stations -->
-        <option value="Tampines"></option>
-        <option value="Raffles Place"></option>
-        <option value="Jurong East"></option>
-        <option value="Bishan"></option>
-        <option value="Bugis"></option>
-        <option value="Telok Ayer"></option>
-        <option value="City Hall"></option>
-        <option value="Dhoby Ghaut"></option>
-        <option value="Outram Park"></option>
-        <option value="Buona Vista"></option>
-        <option value="Serangoon"></option>
-        <option value="Paya Lebar"></option>
-        <option value="one-north"></option>
-        <option value="Punggol"></option>
-        <option value="HarbourFront"></option>
-        <option value="Marina Bay"></option>
-        <option value="Woodlands"></option>
-        <option value="Newton"></option>
-        <option value="Chinatown"></option>
-        <option value="MacPherson"></option>
-      </datalist>
-
-      <!-- Timing & Preferences Bar (Google Maps Style Options) -->
-      <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-300">
+      <!-- Universal Search Box Card (Google Maps Style - Right) -->
+      <div class="bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-2xl p-3 shadow-2xl pointer-events-auto flex flex-col gap-2.5 w-full md:w-96 lg:w-[440px] shrink-0">
         
-        <!-- Arrival Timing Picker (Editable down to the minute) -->
-        <div class="flex items-center gap-1.5">
-          <i class="fa-regular fa-clock text-blue-400"></i>
-          <span class="text-[11px] text-slate-400 font-medium">Arrive by:</span>
-          <div class="flex items-center gap-1">
-            <input 
-              type="time" 
-              id="input-arrival-time" 
-              value="08:45" 
-              step="60"
-              title="Target arrival time (editable down to the minute)"
-              class="bg-slate-800 border border-slate-700 text-white font-semibold rounded-md px-2 py-0.5 text-xs focus:outline-none focus:border-blue-500 hover:border-slate-600 transition cursor-pointer [color-scheme:dark]"
-            />
-            <div class="flex items-center gap-0.5">
-              <button id="btn-minute-dec" type="button" title="Decrease by 1 minute" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white text-[9px] transition">
-                <i class="fa-solid fa-minus"></i>
-              </button>
-              <button id="btn-minute-inc" type="button" title="Increase by 1 minute" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white text-[9px] transition">
-                <i class="fa-solid fa-plus"></i>
-              </button>
+        <!-- Origin & Destination Inputs with Connector Line -->
+        <div class="flex items-center gap-2.5">
+          
+          <!-- Pin Column -->
+          <div class="flex flex-col items-center justify-between h-14 py-1 shrink-0">
+            <div class="w-3 h-3 rounded-full border-2 border-blue-500 bg-blue-500/30"></div>
+            <div class="w-0.5 h-6 bg-slate-700"></div>
+            <div class="w-3 h-3 rounded-full border-2 border-rose-500 bg-rose-500"></div>
+          </div>
+
+          <!-- Inputs Column -->
+          <div class="flex-1 flex flex-col gap-1.5">
+            <!-- Origin -->
+            <div class="relative flex items-center">
+              <input 
+                id="origin-input" 
+                type="text" 
+                value="Blk 230 Tampines St 21 (Home)" 
+                placeholder="Enter 6-digit postal (e.g. 529538), address, or station..." 
+                autocomplete="off"
+                class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+              />
+              <div id="origin-suggestions" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-800/80"></div>
+            </div>
+            <!-- Destination -->
+            <div class="relative flex items-center">
+              <input 
+                id="dest-input" 
+                type="text" 
+                value="One Raffles Place, CBD (Office)" 
+                placeholder="Enter 6-digit postal (e.g. 048624), address, or station..." 
+                autocomplete="off"
+                class="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+              />
+              <div id="dest-suggestions" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-800/80"></div>
             </div>
           </div>
+
+          <!-- Action Buttons Column (Swap & Search) -->
+          <div class="flex flex-col gap-1.5 shrink-0">
+            <button id="btn-swap-locations" type="button" title="Swap Origin and Destination" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition">
+              <i class="fa-solid fa-arrow-right-arrow-left text-xs rotate-90"></i>
+            </button>
+            <button id="btn-search-route" type="button" title="Find Route" class="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white flex items-center justify-center shadow transition">
+              <i class="fa-solid fa-magnifying-glass text-xs"></i>
+            </button>
+          </div>
         </div>
 
-        <!-- Weather Status Chip -->
-        <div id="weather-chip" class="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[11px] text-slate-300">
-          <i class="fa-solid fa-sun text-amber-400"></i>
-          <span>Fair</span>
+        <!-- Real-Time Geocoding & Postal Detection Status Bar -->
+        <div id="location-hint-bar" class="hidden flex items-center justify-between text-[10px] text-blue-300 px-2 py-0.5 bg-blue-950/60 rounded border border-blue-800/60 transition">
+          <span id="location-hint-text" class="flex items-center gap-1"><i class="fa-solid fa-location-crosshairs text-blue-400"></i> Postal Geocoding Ready</span>
+          <span class="text-[9px] text-slate-400 font-mono">OneMap / LTA Geocoded</span>
         </div>
 
-      </div>
+        <!-- Timing & Preferences Bar (Google Maps Style Options) -->
+        <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-300">
+          
+          <!-- Arrival Timing Picker (Editable down to the minute) -->
+          <div class="flex items-center gap-1.5">
+            <i class="fa-regular fa-clock text-blue-400"></i>
+            <span class="text-[11px] text-slate-400 font-medium">Arrive by:</span>
+            <div class="flex items-center gap-1">
+              <input 
+                type="time" 
+                id="input-arrival-time" 
+                value="08:45" 
+                step="60"
+                title="Target arrival time (editable down to the minute)"
+                class="bg-slate-800 border border-slate-700 text-white font-semibold rounded-md px-2 py-0.5 text-xs focus:outline-none focus:border-blue-500 hover:border-slate-600 transition cursor-pointer [color-scheme:dark]"
+              />
+              <div class="flex items-center gap-0.5">
+                <button id="btn-minute-dec" type="button" title="Decrease by 1 minute" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white text-[9px] transition">
+                  <i class="fa-solid fa-minus"></i>
+                </button>
+                <button id="btn-minute-inc" type="button" title="Increase by 1 minute" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white text-[9px] transition">
+                  <i class="fa-solid fa-plus"></i>
+                </button>
+              </div>
+            </div>
+          </div>
 
-    </div>
+          <!-- Weather Status Chip -->
+          <div id="weather-chip" class="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[11px] text-slate-300">
+            <i class="fa-solid fa-sun text-amber-400"></i>
+            <span>Fair</span>
+          </div>
 
-    <!-- ================================================================= -->
-    <!-- PROACTIVE TRAFFIC DETOUR / INCIDENT BANNER (Slides down on alert) -->
-    <!-- ================================================================= -->
-    <div id="proactive-alert-banner" class="pointer-events-auto rounded-xl p-3 border shadow-2xl transition-all duration-300 bg-emerald-950/80 border-emerald-700/80">
-      
-      <div class="flex items-center justify-between mb-1">
-        <div class="flex items-center gap-1.5">
-          <span id="alert-icon" class="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px]">
-            <i class="fa-solid fa-check"></i>
-          </span>
-          <span id="alert-status-label" class="text-[11px] font-bold uppercase tracking-wider text-emerald-400">On Schedule</span>
         </div>
-        <div class="flex items-center gap-1.5">
-          <span id="ai-meta-badge" class="hidden text-[9px] px-2 py-0.5 bg-indigo-950 text-indigo-300 border border-indigo-700 rounded-full font-mono shadow-sm"></span>
-          <span id="noise-filter-badge" class="text-[10px] px-1.5 py-0.5 bg-slate-800 text-slate-400 rounded border border-slate-700 font-mono">
-            Noise Filter: &lt;15m Silent
-          </span>
-        </div>
-      </div>
 
-      <!-- Pre-emptive Crowd Departure Warning -->
-      <div id="pcd-forecast-banner" class="hidden mb-1.5 p-2 rounded-lg bg-amber-950/80 border border-amber-600/80 text-[11px] text-amber-200 flex items-center gap-1.5 shadow-sm">
-        <i class="fa-solid fa-people-group text-amber-400 shrink-0"></i>
-        <span id="pcd-forecast-text" class="leading-snug"></span>
-      </div>
-
-      <div id="alert-headline" class="text-xs font-bold text-white leading-tight mb-0.5">
-        All EWL trains operating normally. Head out at 07:40 AM.
-      </div>
-      <div id="alert-detail" class="text-[11px] text-slate-300 leading-snug">
-        Estimated desk arrival at 08:24 AM (21 mins buffer before 08:45 deadline).
-      </div>
-
-      <!-- One-Tap Action Button when Disrupted -->
-      <div id="alert-action-row" class="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between hidden">
-        <span class="text-[11px] text-rose-300 font-medium flex items-center gap-1">
-          <i class="fa-solid fa-triangle-exclamation text-rose-400"></i> Meeting Risk
-        </span>
-        <button id="btn-accept-bypass" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold text-xs rounded-lg shadow flex items-center gap-1.5 transition">
-          <span>Switch to Downtown Line Bypass</span>
-          <i class="fa-solid fa-arrow-right text-[10px]"></i>
-        </button>
       </div>
 
     </div>
@@ -297,16 +259,26 @@
   <!-- ================================================================= -->
   <!-- GOOGLE MAPS BOTTOM TRANSIT SHEET                                  -->
   <!-- ================================================================= -->
-  <footer id="bottom-sheet" class="bg-slate-900 border-t border-slate-800 z-20 shrink-0 px-3 py-2 flex flex-col gap-2 max-h-80 md:max-h-96 overflow-y-auto transition-all">
+  <footer id="bottom-sheet" class="bg-slate-900 border-t border-slate-800 z-20 shrink-0 px-3 py-2 flex flex-col gap-2 transition-all duration-300 max-h-[24rem] md:max-h-96 overflow-y-auto">
     
     <!-- Drag Handle & Section Header -->
     <div class="flex flex-col items-center pb-1">
       <div class="w-10 h-1 bg-slate-700 rounded-full mb-1"></div>
       <div class="w-full flex items-center justify-between text-xs text-slate-400 px-1">
         <span class="font-bold uppercase tracking-wider text-[11px] text-slate-200">Recommended Routes</span>
-        <span class="text-[11px]">Target: <strong id="target-desk-label" class="text-white">08:45 AM</strong></span>
+        <div class="flex items-center gap-2">
+          <span class="text-[11px]">Target: <strong id="target-desk-label" class="text-white">08:45 AM</strong></span>
+          <!-- Minimise / Expand toggle -->
+          <button id="btn-toggle-sheet" title="Minimise / expand route panel"
+            class="w-6 h-6 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition text-[10px]">
+            <i id="sheet-toggle-icon" class="fa-solid fa-chevron-down"></i>
+          </button>
+        </div>
       </div>
     </div>
+
+    <!-- Collapsible content — hidden when sheet is minimised -->
+    <div id="sheet-body" class="flex flex-col gap-2 transition-all duration-300">
 
     <!-- Active Custom Journey Status Banner -->
     <div id="custom-journey-active-banner" class="hidden p-2 rounded-xl bg-indigo-950/90 border border-indigo-500/80 flex items-center justify-between shadow-lg mb-1 transition-all">
@@ -396,7 +368,7 @@
             </div>
             <div>
               <div class="flex items-center gap-1 flex-wrap">
-                <span class="font-semibold text-xs text-white">Downtown Line Bypass</span>
+                <span id="dtl-route-name" class="font-semibold text-xs text-white">Downtown Line Bypass</span>
                 <span id="dtl-crowd-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800">CROWD: LOW</span>
                 <span id="dtl-exit-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-blue-950 text-blue-300 border border-blue-800 flex items-center gap-0.5"><i class="fa-solid fa-door-open text-[8px]"></i> EXIT B</span>
                 <span id="dtl-shelter-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-0.5">🛡️ 95% SHELTER</span>
@@ -425,7 +397,7 @@
             </div>
             <div>
               <div class="flex items-center gap-1 flex-wrap">
-                <span class="font-semibold text-xs text-white">Express Bus 10e</span>
+                <span id="bus-route-name" class="font-semibold text-xs text-white">Express Bus 10e</span>
                 <span id="bus-crowd-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-800">SEATS AVAIL</span>
                 <span id="bus-exit-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-purple-950 text-purple-300 border border-purple-800 flex items-center gap-0.5"><i class="fa-solid fa-bus text-[8px]"></i> STOP 03011</span>
                 <span id="bus-shelter-chip" class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-0.5">☂️ 55% SHELTER</span>
@@ -445,7 +417,8 @@
         <div id="bus-legs-container" class="hidden"></div>
       </div>
 
-    </div>
+    </div><!-- /route-cards-list -->
+    </div><!-- /sheet-body -->
   </footer>
 
   <!-- ================================================================= -->
@@ -698,6 +671,6 @@
   </div>
 
   <!-- App Modular Scripts (Teammate A) -->
-  <script type="module" src="/static/js/main.js"></script>
+  <script type="module" src="/static/js/main.js?v=20260919f"></script>
 </body>
 </html>

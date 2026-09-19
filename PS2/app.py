@@ -179,10 +179,13 @@ def _enrich_evaluation_with_custom_route(evaluation, origin, dest, rain_active=F
     primary_line = route_res.get("line", "DTL")
     track_color = LINE_COLORS.get(primary_line, "#2563eb")
 
+    prim_lines = " -> ".join(route_res.get("lines_used", []))
+    prim_title = f"Primary: {prim_lines}" if prim_lines else route_res["title"]
+
     evaluation["is_custom"] = True
     evaluation["routes"]["primary_ewl"] = {
         "id": "primary_ewl",
-        "title": route_res["title"],
+        "title": prim_title,
         "transit_type": route_res["transit_type"],
         "line": route_res["line"],
         "lines_used": route_res["lines_used"],
@@ -193,14 +196,64 @@ def _enrich_evaluation_with_custom_route(evaluation, origin, dest, rain_active=F
         "crowd_level": "m",
         "is_recommended": True,
         "sheltered_percent": route_res.get("sheltered_percent", 75),
-        "legs": route_res["legs"]
+        "legs": route_res["legs"],
+        "polyline": route_res.get("polyline", []),
+        "stations": route_res.get("stations", []),
+        "walking_paths": route_res.get("walking_paths", {}),
     }
+    evaluation["routes"]["arbitrary_route"] = evaluation["routes"]["primary_ewl"]
+
+    # Populate dynamic alternative route if available
+    alternatives = route_res.get("alternatives", [])
+    if alternatives:
+        alt_route = alternatives[0]
+        alt_line = alt_route.get("line", "MRT")
+        alt_lines = " -> ".join(alt_route.get("lines_used", []))
+        alt_title = f"Alternative: {alt_lines}" if alt_lines else alt_route["title"]
+        alt_track_color = LINE_COLORS.get(alt_line, "#6366f1")
+        evaluation["routes"]["bypass_dtl"] = {
+            "id": "bypass_dtl",
+            "title": alt_title,
+            "transit_type": alt_route["transit_type"],
+            "line": alt_route["line"],
+            "lines_used": alt_route["lines_used"],
+            "total_duration_min": alt_route["total_duration_min"],
+            "estimated_arrival": alt_route["estimated_arrival"],
+            "delay_minutes": 0,
+            "status": alt_route["status"],
+            "crowd_level": "l",
+            "is_recommended": False,
+            "sheltered_percent": alt_route.get("sheltered_percent", 80),
+            "legs": alt_route["legs"],
+            "polyline": alt_route.get("polyline", []),
+            "stations": alt_route.get("stations", []),
+            "walking_paths": alt_route.get("walking_paths", {}),
+        }
+    else:
+        evaluation["routes"].pop("bypass_dtl", None)
+
+    # Include public bus alternative for any location (Item 3: include bus lines for routing)
+    bus_route = _router.compute_custom_bus_journey(
+        orig_coords=orig_coords,
+        dest_coords=dest_coords,
+        orig_display=orig_res.get("display", orig_str),
+        dest_display=dest_res.get("display", dest_str),
+        rain_active=rain_active,
+    )
+    if bus_route:
+        evaluation["routes"]["bypass_bus10e"] = bus_route
 
     lines_str = " -> ".join(route_res.get("lines_used", []))
     evaluation["decision"]["headline"] = f"Route: {orig_res.get('display')} to {dest_res.get('display')}"
     evaluation["decision"]["one_line_advice"] = f"Via {lines_str} ({route_res.get('status')}). Travel time: {route_res.get('total_duration_min')} mins."
     evaluation["decision"]["is_delayed"] = False
     evaluation["decision"]["urgency"] = "CALM"
+    if alternatives:
+        evaluation["decision"]["active_recommendation"] = f"Alternative via {' -> '.join(alternatives[0].get('lines_used', []))}"
+
+    alt_track = alternatives[0].get("polyline", []) if alternatives else []
+    alt_stations = alternatives[0].get("stations", []) if alternatives else []
+    bus_track = bus_route.get("polyline", []) if bus_route else []
 
     evaluation["map_layers"] = {
         "is_custom": True,
@@ -216,6 +269,10 @@ def _enrich_evaluation_with_custom_route(evaluation, origin, dest, rain_active=F
         "custom_track": custom_track,
         "custom_tracks": custom_tracks,
         "custom_stations": custom_stations,
+        "alt_track": alt_track,
+        "alt_stations": alt_stations,
+        "bus10e_track": bus_track,
+        "bus_title": bus_route.get("title", "Public Bus Service") if bus_route else "Public Bus",
         "track_color": track_color,
         "route_summary": route_res.get("status", ""),
         "ewl_stations": [],

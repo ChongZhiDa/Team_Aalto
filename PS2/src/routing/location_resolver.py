@@ -222,7 +222,15 @@ _LOCATIONS: Dict[str, Dict[str, Any]] = {
     "somerset": {"station": "Somerset", "walk_min": 3, "walk_m": 240, "display": "Somerset"},
     "dhoby ghaut": {"station": "Dhoby Ghaut", "walk_min": 3, "walk_m": 240, "display": "Dhoby Ghaut"},
     "city hall": {"station": "City Hall", "walk_min": 3, "walk_m": 240, "display": "City Hall"},
-    "raffles place": {"station": "Raffles Place", "walk_min": 3, "walk_m": 240, "display": "Raffles Place"},
+    "raffles place": {"station": "Raffles Place", "walk_min": 3, "walk_m": 240, "display": "Raffles Place", "coordinates": [1.2840, 103.8515]},
+    "one raffles place": {"station": "Raffles Place", "walk_min": 2, "walk_m": 120, "display": "One Raffles Place, CBD", "coordinates": [1.2840, 103.8515]},
+    "one raffles place cbd": {"station": "Raffles Place", "walk_min": 2, "walk_m": 120, "display": "One Raffles Place, CBD", "coordinates": [1.2840, 103.8515]},
+    "one raffles place cbd office": {"station": "Raffles Place", "walk_min": 2, "walk_m": 120, "display": "One Raffles Place, CBD (Office)", "coordinates": [1.2840, 103.8515]},
+    "one raffles place, cbd (office)": {"station": "Raffles Place", "walk_min": 2, "walk_m": 120, "display": "One Raffles Place, CBD (Office)", "coordinates": [1.2840, 103.8515]},
+    "blk 230 tampines st 21 (home)": {"station": "Tampines", "walk_min": 5, "walk_m": 350, "display": "Blk 230 Tampines St 21 (Home)", "coordinates": [1.3556, 103.9495]},
+    "blk 230 tampines st 21": {"station": "Tampines", "walk_min": 5, "walk_m": 350, "display": "Blk 230 Tampines St 21 (Home)", "coordinates": [1.3556, 103.9495]},
+    "sixth avenue": {"station": "Sixth Avenue", "walk_min": 3, "walk_m": 240, "display": "Sixth Avenue", "coordinates": [1.3308, 103.7970]},
+    "six avenue": {"station": "Sixth Avenue", "walk_min": 3, "walk_m": 240, "display": "Sixth Avenue", "coordinates": [1.3308, 103.7970]},
     "marina bay": {"station": "Marina Bay", "walk_min": 3, "walk_m": 240, "display": "Marina Bay"},
     "marina south pier": {"station": "Marina South Pier", "walk_min": 3, "walk_m": 240, "display": "Marina South Pier"},
     "lavender": {"station": "Lavender", "walk_min": 3, "walk_m": 240, "display": "Lavender"},
@@ -636,8 +644,10 @@ def _extract_postal_code(text: str) -> Optional[str]:
 
 
 def _normalize(text: str) -> str:
-    """Strip common MRT-related suffixes and normalise whitespace."""
+    """Strip common MRT-related suffixes, parentheses, punctuation, and normalise whitespace."""
     text = text.lower().strip()
+    # Remove parenthetical descriptions like (Office), (Home), (CBD)
+    text = re.sub(r"\([^)]*\)", " ", text).strip()
     # Remove common suffixes (order matters - longest first)
     for suffix in [
         " mrt station", " mrt interchange", " interchange", " mrt",
@@ -646,8 +656,8 @@ def _normalize(text: str) -> str:
         if text.endswith(suffix):
             text = text[: -len(suffix)].strip()
             break
-    # Normalise hyphens, apostrophes, extra spaces
-    text = re.sub(r"['\u2019\-]", " ", text)
+    # Normalise punctuation (commas, hyphens, apostrophes, slashes, brackets)
+    text = re.sub(r"['\u2019\-,:;()\[\]/]", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
@@ -864,6 +874,35 @@ def suggest_locations(query: str, station_names: Optional[List[str]] = None, lim
 _PEDESTRIAN_CACHE: Dict[Tuple[float, float, float, float], Tuple[List[List[float]], float]] = {}
 
 
+def _decode_valhalla_polyline(encoded: str, precision: int = 6) -> List[List[float]]:
+    """Decode Valhalla's encoded latitude/longitude shape into Leaflet points."""
+    coordinates: List[List[float]] = []
+    index = 0
+    latitude = 0
+    longitude = 0
+    factor = 10 ** precision
+
+    while index < len(encoded):
+        values = []
+        for _ in range(2):
+            result = 0
+            shift = 0
+            while index < len(encoded):
+                byte = ord(encoded[index]) - 63
+                index += 1
+                result |= (byte & 0x1F) << shift
+                shift += 5
+                if byte < 0x20:
+                    break
+            values.append(-(result >> 1) if result & 1 else result >> 1)
+
+        latitude += values[0]
+        longitude += values[1]
+        coordinates.append([latitude / factor, longitude / factor])
+
+    return coordinates
+
+
 def get_pedestrian_path(
     start_coords: Optional[List[float]],
     end_coords: Optional[List[float]],
@@ -884,34 +923,49 @@ def get_pedestrian_path(
     if key in _PEDESTRIAN_CACHE:
         return _PEDESTRIAN_CACHE[key]
 
-    # Coordinate ordering: start_coords = [lat, lon], end_coords = [lat, lon]
-    # OSRM expects: lon1,lat1;lon2,lat2
-    url = (
-        f"https://router.project-osrm.org/route/v1/foot/"
-        f"{start_coords[1]:.6f},{start_coords[0]:.6f};"
-        f"{end_coords[1]:.6f},{end_coords[0]:.6f}"
-        f"?overview=full&geometries=geojson"
-    )
+    # OSRM's public service does not provide a pedestrian profile. Valhalla's
+    # public OSM instance does, and returns paths that follow mapped footways.
+    request_body = json.dumps({
+        "locations": [
+            {"lat": start_coords[0], "lon": start_coords[1]},
+            {"lat": end_coords[0], "lon": end_coords[1]},
+        ],
+        "costing": "pedestrian",
+        "units": "kilometers",
+        "shape_format": "geojson",
+    }).encode("utf-8")
     req = urllib.request.Request(
-        url,
-        headers={"User-Agent": "StationBuddy-Pedestrian/1.0", "Accept": "application/json"}
+        "https://valhalla1.openstreetmap.de/route",
+        data=request_body,
+        method="POST",
+        headers={
+            "User-Agent": "StationBuddy-Pedestrian/1.0",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
             if resp.status == 200:
                 data = json.loads(resp.read().decode("utf-8"))
-                if data.get("code") == "Ok" and data.get("routes"):
-                    route = data["routes"][0]
-                    # geometry.coordinates is [[lon, lat], ...]
-                    # Convert to Leaflet [[lat, lon], ...]
-                    pts = [[p[1], p[0]] for p in route["geometry"]["coordinates"]]
+                trip = data.get("trip", {})
+                legs = trip.get("legs", [])
+                if legs:
+                    geometry = legs[0].get("shape", {})
+                    if isinstance(geometry, dict):
+                        coordinates = geometry.get("coordinates", [])
+                        pts = [[p[1], p[0]] for p in coordinates if len(p) >= 2]
+                    elif isinstance(geometry, str):
+                        pts = _decode_valhalla_polyline(geometry)
+                    else:
+                        pts = []
                     # Ensure start doorstep pin and end station pin connect seamlessly
                     if pts:
                         if pts[0] != list(start_coords):
                             pts.insert(0, list(start_coords))
                         if pts[-1] != list(end_coords):
                             pts.append(list(end_coords))
-                    dist_m = float(route.get("distance", 0.0))
+                    dist_m = float(trip.get("summary", {}).get("length", 0.0)) * 1000.0
                     result = (pts, dist_m)
                     _PEDESTRIAN_CACHE[key] = result
                     return result

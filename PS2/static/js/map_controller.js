@@ -123,7 +123,21 @@ export const MRT_STATION_COORDS = {
   "Tampines West": [1.3456, 103.9384],
   "Tampines East": [1.3562, 103.9546],
   "Upper Changi": [1.3417, 103.9614],
-  "Expo": [1.3345, 103.9618]
+  "Expo": [1.3345, 103.9618],
+  "Woodlands North": [1.4485, 103.7857],
+  "Woodlands South": [1.4273, 103.7933],
+  "Springleaf": [1.3976, 103.8178],
+  "Lentor": [1.3855, 103.8361],
+  "Mayflower": [1.3714, 103.8365],
+  "Bright Hill": [1.3633, 103.8335],
+  "Upper Thomson": [1.3544, 103.8329],
+  "Napier": [1.3068, 103.8188],
+  "Orchard Boulevard": [1.3032, 103.8237],
+  "Great World": [1.2936, 103.8320],
+  "Havelock": [1.2885, 103.8335],
+  "Maxwell": [1.2808, 103.8442],
+  "Shenton Way": [1.2778, 103.8504],
+  "Gardens by the Bay": [1.2783, 103.8672]
 };
 
 export class MapController {
@@ -150,13 +164,56 @@ export class MapController {
 
     L.control.zoom({ position: 'topright' }).addTo(this.map);
 
-    // Mandatory OpenStreetMap base layer with attribution
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // 1. OneMap Singapore Official Basemap (Night style for sleek dark UI)
+    const onemapNight = L.tileLayer('https://www.onemap.gov.sg/maps/tiles/Night/{z}/{x}/{y}.png', {
+      minZoom: 11,
+      maxZoom: 19,
+      attribution: 'Map &copy; <a href="https://www.onemap.gov.sg/" target="_blank">OneMap</a> &copy; <a href="https://www.sla.gov.sg/" target="_blank">Singapore Land Authority</a> | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+    });
+
+    // 2. OneMap Singapore Official Basemap (Standard Color style)
+    const onemapDefault = L.tileLayer('https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png', {
+      minZoom: 11,
+      maxZoom: 19,
+      attribution: 'Map &copy; <a href="https://www.onemap.gov.sg/" target="_blank">OneMap</a> &copy; <a href="https://www.sla.gov.sg/" target="_blank">Singapore Land Authority</a> | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+    });
+
+    // 3. OpenStreetMap Base Layer
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
-    }).addTo(this.map);
+    });
+
+    // Add OneMap Night as default active base layer
+    onemapNight.addTo(this.map);
+
+    // Automatic resilience fallback to OpenStreetMap if OneMap tile service is unreachable
+    let hasFallbackFired = false;
+    onemapNight.on('tileerror', () => {
+      if (!hasFallbackFired) {
+        hasFallbackFired = true;
+        console.warn('OneMap tile service unavailable, falling back to OpenStreetMap.');
+        osmLayer.addTo(this.map);
+        this.map.removeLayer(onemapNight);
+      }
+    });
+
+    // Provide base layer toggle in topright
+    const baseLayers = {
+      "OneMap Night (SLA)": onemapNight,
+      "OneMap Color (SLA)": onemapDefault,
+      "OpenStreetMap": osmLayer
+    };
+    L.control.layers(baseLayers, null, { position: 'topright' }).addTo(this.map);
 
     this.layersGroup = L.featureGroup().addTo(this.map);
+
+    window.addEventListener('resize', () => {
+      if (this.map) this.map.invalidateSize();
+    });
+    setTimeout(() => {
+      if (this.map) this.map.invalidateSize();
+    }, 200);
   }
 
   renderLayers(data, activeRouteId = 'primary_ewl') {
@@ -199,8 +256,13 @@ export class MapController {
         allBounds.push(layers.destination.coords);
       }
 
+      // Route state flags — must be declared before any usage below
+      const isAltActive = activeRouteId === 'bypass_dtl';
+      const isBusActive = activeRouteId === 'bypass_bus10e';
+      const isPrimaryActive = activeRouteId === 'primary_ewl' || (!isAltActive && !isBusActive);
+
       // 3. Walking legs (turn-by-turn footpaths connecting house to station avoiding buildings)
-      if (layers.walking_legs) {
+      if (layers.walking_legs && (showAll || !isBusActive)) {
         Object.values(layers.walking_legs).forEach(walk => {
           if (walk.coords && walk.coords.length >= 2) {
             const distLabel = walk.distance_m ? ` (${Math.round(walk.distance_m)}m)` : '';
@@ -217,56 +279,108 @@ export class MapController {
         });
       }
 
-      // 4. Custom transit track polylines (colored per MRT line)
-      if (layers.custom_tracks && layers.custom_tracks.length > 0) {
-        layers.custom_tracks.forEach(track => {
-          if (track.coords && track.coords.length >= 2) {
-            L.polyline(track.coords, {
-              color: track.color || '#2563eb',
-              weight: 6,
-              opacity: 0.95,
-              lineCap: 'round',
-              lineJoin: 'round'
-            }).addTo(this.layersGroup).bindPopup(`<b>${track.line || 'MRT'} Line</b><br>${layers.route_summary || 'Transit Segment'}`);
-            track.coords.forEach(c => allBounds.push(c));
-          }
-        });
-      } else if (layers.custom_track && layers.custom_track.length >= 2) {
-        const trackColor = layers.track_color || '#2563eb';
-        L.polyline(layers.custom_track, {
-          color: trackColor,
-          weight: 6,
-          opacity: 0.95,
+      // 4. Custom transit track polylines (primary, alternative MRT, and public bus)
+
+      // 4a. Draw alternate custom MRT track if active or if user clicked 'Show Other Routes'
+      if (layers.alt_track && layers.alt_track.length >= 2 && (showAll || isAltActive)) {
+        L.polyline(layers.alt_track, {
+          color: isAltActive ? '#6366f1' : '#a855f7',
+          weight: isAltActive ? 6 : 3.5,
+          dashArray: showAll && !isAltActive ? '6, 6' : null,
+          opacity: isAltActive ? 1.0 : 0.7,
           lineCap: 'round',
           lineJoin: 'round'
-        }).addTo(this.layersGroup).bindPopup(`<b>Transit Route</b><br>${layers.route_summary || 'MRT Route'}`);
-        layers.custom_track.forEach(c => allBounds.push(c));
+        }).addTo(this.layersGroup).bindPopup(`<b>Alternative MRT Route</b><br>${data.routes?.bypass_dtl?.title || 'Alternative Route'}`);
+        if (isAltActive || showAll) {
+          layers.alt_track.forEach(c => allBounds.push(c));
+        }
+      }
+
+      // 4b. Draw public bus track if active or if user clicked 'Show Other Routes'
+      if (layers.bus10e_track && layers.bus10e_track.length >= 2 && (showAll || isBusActive)) {
+        L.polyline(layers.bus10e_track, {
+          color: isBusActive ? '#8b5cf6' : '#a78bfa',
+          weight: isBusActive ? 6 : 3.5,
+          dashArray: showAll && !isBusActive ? '5, 5' : null,
+          opacity: isBusActive ? 1.0 : 0.7,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }).addTo(this.layersGroup).bindPopup(`<b>${layers.bus_title || 'Public Bus Service'}</b><br>${data.routes?.bypass_bus10e?.title || 'Bus Route'}`);
+        if (isBusActive || showAll) {
+          layers.bus10e_track.forEach(c => allBounds.push(c));
+        }
+      }
+
+      // 4c. Draw primary custom track
+      if (showAll || isPrimaryActive) {
+        if (layers.custom_tracks && layers.custom_tracks.length > 0) {
+          layers.custom_tracks.forEach(track => {
+            if (track.coords && track.coords.length >= 2) {
+              L.polyline(track.coords, {
+                color: track.color || '#2563eb',
+                weight: isPrimaryActive ? 6 : 3.5,
+                dashArray: showAll && !isPrimaryActive ? '6, 6' : null,
+                opacity: isPrimaryActive ? 0.95 : 0.6,
+                lineCap: 'round',
+                lineJoin: 'round'
+              }).addTo(this.layersGroup).bindPopup(`<b>${track.line || 'MRT'} Line (Primary)</b><br>${layers.route_summary || 'Transit Segment'}`);
+              if (isPrimaryActive || showAll) {
+                track.coords.forEach(c => allBounds.push(c));
+              }
+            }
+          });
+        } else if (layers.custom_track && layers.custom_track.length >= 2) {
+          const trackColor = layers.track_color || '#2563eb';
+          L.polyline(layers.custom_track, {
+            color: trackColor,
+            weight: isPrimaryActive ? 6 : 3.5,
+            dashArray: showAll && !isPrimaryActive ? '6, 6' : null,
+            opacity: isPrimaryActive ? 0.95 : 0.6,
+            lineCap: 'round',
+            lineJoin: 'round'
+          }).addTo(this.layersGroup).bindPopup(`<b>Transit Route (Primary)</b><br>${layers.route_summary || 'MRT Route'}`);
+          if (isPrimaryActive || showAll) {
+            layers.custom_track.forEach(c => allBounds.push(c));
+          }
+        }
       }
 
       // 5. Stations along the route
-      if (layers.custom_stations) {
-        layers.custom_stations.forEach(stn => {
-          const pinClass = stn.line === 'NEL' ? 'bg-purple-600' :
-                           (stn.line === 'DTL' ? 'bg-blue-600' :
-                           (stn.line === 'EWL' ? 'bg-emerald-600' :
-                           (stn.line === 'CCL' ? 'bg-amber-500' :
-                           (stn.line === 'NSL' ? 'bg-red-600' :
-                           (stn.line === 'TEL' ? 'bg-yellow-800' : 'bg-slate-700')))));
-          const icon = L.divIcon({
-            className: '',
-            html: `<div class="w-3.5 h-3.5 rounded-full ${pinClass} border-2 border-white shadow-md"></div>`,
-            iconSize: [14, 14],
-            iconAnchor: [7, 7]
-          });
-          L.marker(stn.coords, { icon }).addTo(this.layersGroup).bindPopup(`
-            <div class="p-1 text-xs">
-              <strong>${stn.name}</strong><br>
-              <span class="text-slate-600 font-medium">${stn.line || 'MRT'} Line</span>
-            </div>
-          `);
-          allBounds.push(stn.coords);
-        });
+      let stationsToRender = [];
+      if (showAll) {
+        stationsToRender = [...(layers.custom_stations || []), ...(layers.alt_stations || [])];
+      } else if (isAltActive) {
+        stationsToRender = (layers.alt_stations && layers.alt_stations.length > 0) ? layers.alt_stations : (layers.custom_stations || []);
+      } else if (isBusActive) {
+        stationsToRender = [];
+      } else {
+        stationsToRender = layers.custom_stations || [];
       }
+
+      const seenStationNames = new Set();
+      stationsToRender.forEach(stn => {
+        if (!stn || !stn.coords || seenStationNames.has(stn.name)) return;
+        seenStationNames.add(stn.name);
+        const pinClass = stn.line === 'NEL' ? 'bg-purple-600' :
+                         (stn.line === 'DTL' ? 'bg-blue-600' :
+                         (stn.line === 'EWL' ? 'bg-emerald-600' :
+                         (stn.line === 'CCL' ? 'bg-amber-500' :
+                         (stn.line === 'NSL' ? 'bg-red-600' :
+                         (stn.line === 'TEL' ? 'bg-yellow-800' : 'bg-slate-700')))));
+        const icon = L.divIcon({
+          className: '',
+          html: `<div class="w-3.5 h-3.5 rounded-full ${pinClass} border-2 border-white shadow-md"></div>`,
+          iconSize: [14, 14],
+          iconAnchor: [7, 7]
+        });
+        L.marker(stn.coords, { icon }).addTo(this.layersGroup).bindPopup(`
+          <div class="p-1 text-xs">
+            <strong>${stn.name}</strong><br>
+            <span class="text-slate-600 font-medium">${stn.line || 'MRT'} Line</span>
+          </div>
+        `);
+        allBounds.push(stn.coords);
+      });
 
       // 6. Smoothly pan and zoom map to show whole door-to-door path
       if (allBounds.length > 0) {
@@ -363,9 +477,9 @@ export class MapController {
     if (layers.bus10e_track && (showAll || isBusActive)) {
       L.polyline(layers.bus10e_track, {
         color: '#8b5cf6',
-        weight: isBusActive ? 5 : 2.5,
-        dashArray: '3, 5',
-        opacity: isBusActive ? 0.9 : 0.4
+        weight: isBusActive ? 6 : 3,
+        dashArray: isBusActive ? null : '4, 6',
+        opacity: isBusActive ? 1.0 : 0.6
       }).addTo(this.layersGroup).bindPopup('<b>Express Bus 10e</b><br>Direct ECP corridor');
     }
 
@@ -466,8 +580,10 @@ export class MapController {
     if (!this.map || !this.layersGroup) return;
     this.layersGroup.clearLayers();
 
-    const polylineCoords = routeData.polyline || routeData.route_polyline || [];
     const stations = routeData.stations || routeData.route_stations || [];
+    const polylineCoords = stations.length >= 2
+      ? stations.map((station) => station.coords)
+      : (routeData.polyline || routeData.route_polyline || []);
 
     const lineColors = {
       'EWL': '#009645',
@@ -495,6 +611,21 @@ export class MapController {
 
       this.map.fitBounds(poly.getBounds(), { padding: [60, 60] });
     }
+
+    // First/last-mile paths are routed separately from the MRT corridor.
+    Object.values(routeData.walking_paths || {}).forEach((walk) => {
+      if (!walk.coords || walk.coords.length < 2) return;
+      L.polyline(walk.coords, {
+        color: '#38bdf8',
+        weight: 4.5,
+        dashArray: '6, 6',
+        opacity: 0.95,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(this.layersGroup).bindPopup(
+        `<b>Walking Route</b><br>${walk.name || 'Pedestrian connection'} (${Math.round(walk.distance_m || 0)}m)`
+      );
+    });
 
     // 2. Draw stations along route
     stations.forEach((stn, idx) => {
@@ -530,7 +661,7 @@ export class MapController {
 
     // 3. Draw final pedestrian walking path to office desk if terminating in CBD
     const lastStn = stations[stations.length - 1];
-    if (lastStn) {
+    if (lastStn && Object.keys(routeData.walking_paths || {}).length === 0) {
       const lastStnName = (lastStn.name || '').toUpperCase();
       const officeCoords = [1.2840, 103.8515];
 

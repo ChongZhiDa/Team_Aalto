@@ -4,7 +4,7 @@
  * proactive incident banners, and route options.
  * Owned by: Teammate A (Frontend & Mobile UX)
  */
-
+export class UIController {
   constructor(handlers = {}) {
     this.handlers = handlers; // onSelectRoute, onSwitchScenario, onThresholdChange, onArrivalChange, onLocationChange, onRecenter
     this.defaultRouteCardsHtml = document.getElementById('route-cards-list')?.innerHTML || '';
@@ -170,6 +170,29 @@
     // Toggle alternative routes button
     document.getElementById('btn-toggle-all-routes')?.addEventListener('click', () => {
       if (this.handlers.onToggleAllRoutes) this.handlers.onToggleAllRoutes();
+    });
+
+    // Bottom sheet minimise / expand toggle
+    let sheetMinimised = false;
+    document.getElementById('btn-toggle-sheet')?.addEventListener('click', () => {
+      const body = document.getElementById('sheet-body');
+      const footer = document.getElementById('bottom-sheet');
+      const icon = document.getElementById('sheet-toggle-icon');
+      if (!body || !footer) return;
+      sheetMinimised = !sheetMinimised;
+      if (sheetMinimised) {
+        body.classList.add('hidden');
+        footer.classList.remove('max-h-[24rem]', 'md:max-h-96', 'overflow-y-auto');
+        footer.classList.add('max-h-10', 'overflow-hidden');
+        if (icon) { icon.className = 'fa-solid fa-chevron-up'; }
+      } else {
+        body.classList.remove('hidden');
+        footer.classList.remove('max-h-10', 'overflow-hidden');
+        footer.classList.add('max-h-[24rem]', 'md:max-h-96', 'overflow-y-auto');
+        if (icon) { icon.className = 'fa-solid fa-chevron-down'; }
+      }
+      // Notify map to recalculate its visible size after transition
+      setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 320);
     });
 
     // Scenario modal
@@ -455,14 +478,14 @@
 
     if (banner && alertIcon && statusLabel) {
       if (decision.urgency === 'CALM') {
-        banner.className = 'pointer-events-auto rounded-xl p-3 border shadow-2xl transition-all duration-300 bg-emerald-950/80 border-emerald-700/80';
+        banner.className = 'pointer-events-auto rounded-2xl p-3 border shadow-2xl transition-all duration-300 bg-emerald-950/90 border-emerald-700/80 backdrop-blur-md w-full md:w-80 lg:w-96 shrink-0';
         alertIcon.className = 'w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px]';
         alertIcon.innerHTML = '<i class="fa-solid fa-check"></i>';
         statusLabel.className = 'text-[11px] font-bold uppercase tracking-wider text-emerald-400';
         statusLabel.textContent = 'On Schedule';
         if (actionRow) actionRow.classList.add('hidden');
       } else {
-        banner.className = 'pointer-events-auto rounded-xl p-3 border shadow-2xl transition-all duration-300 bg-rose-950/90 border-rose-600/90 ring-1 ring-rose-500/40';
+        banner.className = 'pointer-events-auto rounded-2xl p-3 border shadow-2xl transition-all duration-300 bg-rose-950/90 border-rose-600/90 ring-1 ring-rose-500/40 backdrop-blur-md w-full md:w-80 lg:w-96 shrink-0';
         alertIcon.className = 'w-4 h-4 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center text-[10px]';
         alertIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation animate-bounce"></i>';
         statusLabel.className = 'text-[11px] font-bold uppercase tracking-wider text-rose-400';
@@ -540,12 +563,6 @@
     const ewl = routes.primary_ewl;
     const container = document.getElementById('route-cards-list');
 
-    if (data.is_custom && ewl) {
-      this.renderCustomRouteSteps(ewl);
-      this.highlightActiveCard(activeRouteId);
-      return;
-    }
-
     // Default Corridor Mode: Restore 3 alternative routes if needed
     if (container && this.defaultRouteCardsHtml && !document.getElementById('card-bypass-dtl')) {
       container.innerHTML = this.defaultRouteCardsHtml;
@@ -555,8 +572,8 @@
     const dtlCard = document.getElementById('card-bypass-dtl');
     const busCard = document.getElementById('card-bypass-bus10e');
 
-    // 0. Custom Commuter Route Card
-    if (routes.primary_custom) {
+    // 0. Custom Commuter Route Card (Persona Builder Mode)
+    if (routes.primary_custom && !data.is_custom) {
       const custom = routes.primary_custom;
       const titleEl = document.getElementById('ewl-route-name');
       if (titleEl) titleEl.textContent = custom.title || 'Custom Commuter Route';
@@ -731,14 +748,26 @@
       if (ewlArrival) ewlArrival.textContent = ewl.estimated_arrival;
       const depTime = data.profile?.departure_time || '07:40 AM';
       const ewlShelter = ewl.sheltered_percent ? ` (${ewl.sheltered_percent}% covered)` : '';
-      if (ewlMeta) ewlMeta.textContent = `Leaves ${depTime} • ${ewl.total_duration_min} mins total${ewlShelter}`;
+      if (ewlMeta) {
+        if (data.is_custom) {
+          ewlMeta.textContent = `${ewl.status || 'Optimal Transit Path'} • ${ewl.total_duration_min} mins total${ewlShelter}`;
+        } else {
+          ewlMeta.textContent = `Leaves ${depTime} • ${ewl.total_duration_min} mins total${ewlShelter}`;
+        }
+      }
 
       const ewlShelterChip = document.getElementById('ewl-shelter-chip');
       if (ewlShelterChip && ewl.sheltered_percent) {
         ewlShelterChip.textContent = `🛡️ ${ewl.sheltered_percent}% SHELTER`;
       }
       const exitChip = document.getElementById('ewl-exit-chip');
-      if (exitChip) exitChip.innerHTML = `<i class="fa-solid fa-door-open text-[8px]"></i> EXIT B`;
+      if (exitChip) {
+        if (data.is_custom) {
+          exitChip.innerHTML = `<i class="fa-solid fa-flag-checkered text-[8px]"></i> TO DEST`;
+        } else {
+          exitChip.innerHTML = `<i class="fa-solid fa-door-open text-[8px]"></i> EXIT B`;
+        }
+      }
 
       if (ewl.delay_minutes > 0) {
         if (ewlArrival) ewlArrival.className = 'text-sm font-bold text-rose-400';
@@ -751,22 +780,26 @@
         if (ewlArrival) ewlArrival.className = 'text-sm font-bold text-emerald-400';
         if (ewlDelay) {
           ewlDelay.className = 'text-[10px] text-emerald-400';
-          ewlDelay.textContent = 'On Time';
+          ewlDelay.textContent = data.is_custom ? 'Primary Route' : 'On Time';
         }
         this.renderCrowdChip(ewlCrowd, ewl.crowd_level || 'm');
       }
 
+      const exitDestName = data.map_layers?.destination?.name || 'Destination';
       this.renderRouteLegs('ewl-legs-container', ewl.legs, 'emerald', {
-        exitStation: 'Raffles Place (EW14)',
+        exitStation: data.is_custom ? exitDestName : 'Raffles Place (EW14)',
         exitDoor: 'Exit B',
-        exitNote: 'Direct underground linkway to One Raffles Place basement',
+        exitNote: data.is_custom ? 'Follow turn-by-turn pedestrian and transit guidance' : 'Direct underground linkway to One Raffles Place basement',
         shelterPercent: ewl.sheltered_percent || 80
       });
 
-      // 2. Downtown Line Bypass Card
+      // 2. Downtown Line Bypass / Dynamic Alternative Card
       const dtl = routes.bypass_dtl;
       if (dtl && dtlCard) {
         dtlCard.classList.remove('hidden');
+        const dtlTitle = document.getElementById('dtl-route-name');
+        if (dtlTitle) dtlTitle.textContent = dtl.title || 'Alternative Route';
+
         const dtlArrival = document.getElementById('dtl-arrival-time');
         const dtlDelay = document.getElementById('dtl-delay-tag');
         const dtlMeta = document.getElementById('dtl-route-meta');
@@ -774,11 +807,26 @@
 
         if (dtlArrival) dtlArrival.textContent = dtl.estimated_arrival;
         const dtlShelter = dtl.sheltered_percent ? ` (${dtl.sheltered_percent}% covered)` : '';
-        if (dtlMeta) dtlMeta.textContent = `Tampines DTL → Telok Ayer • ${dtl.total_duration_min} mins${dtlShelter}`;
+        if (dtlMeta) {
+          if (data.is_custom) {
+            dtlMeta.textContent = `${dtl.status || 'Alternative Transit Path'} • ${dtl.total_duration_min} mins${dtlShelter}`;
+          } else {
+            dtlMeta.textContent = `Tampines DTL → Telok Ayer • ${dtl.total_duration_min} mins${dtlShelter}`;
+          }
+        }
 
         const dtlShelterChip = document.getElementById('dtl-shelter-chip');
         if (dtlShelterChip && dtl.sheltered_percent) {
           dtlShelterChip.textContent = `🛡️ ${dtl.sheltered_percent}% SHELTER`;
+        }
+
+        const dtlExitChip = document.getElementById('dtl-exit-chip');
+        if (dtlExitChip) {
+          if (data.is_custom) {
+            dtlExitChip.innerHTML = `<i class="fa-solid fa-flag-checkered text-[8px]"></i> TO DEST`;
+          } else {
+            dtlExitChip.innerHTML = `<i class="fa-solid fa-door-open text-[8px]"></i> EXIT B`;
+          }
         }
 
         if (dtlDelay) {
@@ -787,36 +835,54 @@
             dtlDelay.textContent = '★ Recommended Bypass';
           } else {
             dtlDelay.className = 'text-[10px] text-slate-400';
-            dtlDelay.textContent = 'Reliable Alternative';
+            dtlDelay.textContent = data.is_custom ? 'Alternative Option' : 'Reliable Alternative';
           }
         }
         this.renderCrowdChip(dtlCrowd, dtl.crowd_level || 'l');
 
         this.renderRouteLegs('dtl-legs-container', dtl.legs, 'blue', {
-          exitStation: 'Telok Ayer (DT18)',
-          exitDoor: 'Exit B',
-          exitNote: 'Sheltered linkway via Cross St & Church St to desk',
+          exitStation: data.is_custom ? exitDestName : 'Telok Ayer (DT18)',
+          exitDoor: data.is_custom ? 'Doorstep / Alighting' : 'Exit B',
+          exitNote: data.is_custom ? 'Alternative transit path to destination' : 'Sheltered linkway via Cross St & Church St to desk',
           shelterPercent: dtl.sheltered_percent || 95
         });
       } else if (dtlCard) {
         dtlCard.classList.add('hidden');
       }
 
-      // 3. Express Bus 10e Card
+      // 3. Express Bus 10e / Public Bus Service Card
       const bus = routes.bypass_bus10e;
       if (bus && busCard) {
         busCard.classList.remove('hidden');
+        const busName = document.getElementById('bus-route-name');
+        if (busName) busName.textContent = bus.title || 'Public Bus Service';
+
         const busArrival = document.getElementById('bus-arrival-time');
         const busDelay = document.getElementById('bus-delay-tag');
         const busMeta = document.getElementById('bus-route-meta');
         const busCrowd = document.getElementById('bus-crowd-chip');
 
         if (busArrival) busArrival.textContent = bus.estimated_arrival;
-        if (busMeta) busMeta.textContent = `Expressway via ECP to CBD • ${bus.total_duration_min} mins`;
+        if (busMeta) {
+          if (data.is_custom) {
+            busMeta.textContent = `${bus.status || 'Public Bus Connection'} • ${bus.total_duration_min} mins`;
+          } else {
+            busMeta.textContent = `Expressway via ECP to CBD • ${bus.total_duration_min} mins`;
+          }
+        }
 
         const busShelterChip = document.getElementById('bus-shelter-chip');
         if (busShelterChip && bus.sheltered_percent) {
           busShelterChip.textContent = `☂️ ${bus.sheltered_percent}% SHELTER`;
+        }
+
+        const busExitChip = document.getElementById('bus-exit-chip');
+        if (busExitChip) {
+          if (data.is_custom) {
+            busExitChip.innerHTML = `<i class="fa-solid fa-flag-checkered text-[8px]"></i> TO DEST`;
+          } else {
+            busExitChip.innerHTML = `<i class="fa-solid fa-bus text-[8px]"></i> STOP 03011`;
+          }
         }
 
         // Color-coded crowd badge: SEA/l -> Green, SDA/m -> Yellow, LSD/h -> Red
@@ -827,14 +893,14 @@
           busDelay.className = isLive ? 'text-[10px] text-emerald-400 font-semibold flex items-center justify-end gap-1' : 'text-[10px] text-slate-400';
           busDelay.innerHTML = isLive
             ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Live LTA Load`
-            : (bus.status || 'Guaranteed Seat');
+            : (bus.status || (data.is_custom ? 'Public Bus' : 'Guaranteed Seat'));
         }
 
         this.renderRouteLegs('bus-legs-container', bus.legs, 'purple', {
-          exitStation: 'Fullerton Sq Stop (03011)',
-          exitDoor: 'Bus Stop',
-          exitNote: 'Walk via Battery Rd to One Raffles Place',
-          shelterPercent: bus.sheltered_percent || 55
+          exitStation: data.is_custom ? exitDestName : 'Fullerton Sq Stop (03011)',
+          exitDoor: data.is_custom ? 'Doorstep / Alighting' : 'Bus Stop',
+          exitNote: data.is_custom ? 'Surface bus connection to destination' : 'Walk via Battery Rd to One Raffles Place',
+          shelterPercent: bus.sheltered_percent || 60
         });
       } else if (busCard) {
         busCard.classList.add('hidden');
@@ -1012,11 +1078,11 @@
       if (leg.mode === 'TRAIN') {
         modeIcon = 'fa-train-subway';
         iconColor = corridorColor === 'blue' ? 'text-blue-400' : 'text-emerald-400';
-        badgeHtml = `<span class="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[9px] font-mono">${leg.stops || 0} stops</span>`;
+        badgeHtml = `<span class="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[9px] font-mono">${leg.stops ? `${leg.stops} stops` : (leg.line || 'MRT Line')}</span>`;
       } else if (leg.mode === 'BUS') {
         modeIcon = 'fa-bus';
         iconColor = 'text-purple-400';
-        badgeHtml = `<span class="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[9px] font-mono">${leg.stops || 0} stops</span>`;
+        badgeHtml = `<span class="px-1.5 py-0.2 rounded bg-purple-950/80 text-purple-300 border border-purple-800 text-[9px] font-mono">${leg.stops ? `${leg.stops} stops` : (leg.line || 'Public Bus')}</span>`;
       } else if (leg.mode === 'CYCLE') {
         modeIcon = 'fa-bicycle';
         iconColor = 'text-emerald-400';

@@ -10,13 +10,61 @@ Supports:
 
 import os
 import math
+from datetime import datetime
 import requests
 from typing import Dict, Any, List, Optional, Union, Tuple
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from .cache_manager import SimpleCache
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 ONEMAP_BASE_URL = "https://www.onemap.gov.sg/api"
+
+
+def decode_polyline(polyline_str: str) -> List[List[float]]:
+    """
+    Decodes a Google Encoded Polyline string into a list of [lat, lon] coordinates.
+    Used for parsing OneMap routing API geometry.
+    """
+    if not polyline_str:
+        return []
+    coords: List[List[float]] = []
+    index = 0
+    lat = 0
+    lng = 0
+    length = len(polyline_str)
+    while index < length:
+        shift = 0
+        result = 0
+        while True:
+            byte = ord(polyline_str[index]) - 63
+            index += 1
+            result |= (byte & 0x1F) << shift
+            shift += 5
+            if byte < 0x20:
+                break
+        dlat = ~(result >> 1) if (result & 1) else (result >> 1)
+        lat += dlat
+
+        shift = 0
+        result = 0
+        while True:
+            byte = ord(polyline_str[index]) - 63
+            index += 1
+            result |= (byte & 0x1F) << shift
+            shift += 5
+            if byte < 0x20:
+                break
+        dlng = ~(result >> 1) if (result & 1) else (result >> 1)
+        lng += dlng
+
+        coords.append([round(lat / 1e5, 5), round(lng / 1e5, 5)])
+    return coords
 
 
 class OneMapClient:
@@ -26,7 +74,10 @@ class OneMapClient:
         email: Optional[str] = None,
         password: Optional[str] = None
     ):
-        self.token = token or os.getenv("ONEMAP_TOKEN", "")
+        if token is not None:
+            self.token = token
+        else:
+            self.token = os.getenv("ONEMAP_TOKEN", "")
         self.cache = SimpleCache(default_ttl_seconds=300, max_size=1000)
 
         # Persistent connection pool for fast geocoding and routing
@@ -44,7 +95,7 @@ class OneMapClient:
         # If email/password provided or found in environment, authenticate automatically
         user_email = email or os.getenv("ONEMAP_EMAIL", "")
         user_pass = password or os.getenv("ONEMAP_PASSWORD", "")
-        if not self.token and user_email and user_pass:
+        if token is None and not self.token and user_email and user_pass:
             self.authenticate(user_email, user_pass)
 
     def _get_headers(self) -> Dict[str, str]:
@@ -268,6 +319,110 @@ class OneMapClient:
         }
         self.cache.set(cache_key, fallback_result)
         return fallback_result
+
+    def get_public_bus_itinerary(
+        self,
+        start_coords: Union[List[float], Tuple[float, float], str],
+        end_coords: Union[List[float], Tuple[float, float], str],
+        target_arrival: str = "08:45 AM"
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves public bus routing between two coordinates via OneMap API.
+        Extracts bus service numbers, turn-by-turn legs, total duration, and decoded polylines.
+        """
+        now = datetime.now()
+        date_str = now.strftime("%m-%d-%Y")
+        raw = self.get_route(
+            start_coords,
+            end_coords,
+            route_type="pt",
+            mode="BUS",
+            date=date_str,
+            time_str="08:00:00"
+        )
+        if raw.get("status") != "ok" or not raw.get("data"):
+            return None
+
+        data = raw["data"]
+        plan = data.get("plan")
+        if not plan or not plan.get("itineraries"):
+            return None
+
+        itins = plan["itineraries"]
+        best_itin = itins[0]
+
+        total_sec = best_itin.get("duration", 0)
+        total_min = max(1, round(total_sec / 60))
+
+        bus_services: List[str] = []
+        legs: List[Dict[str, Any]] = []
+        all_polyline: List[List[float]] = []
+
+        for leg in best_itin.get("legs", []):
+            mode = leg.get("mode", "").upper()
+            leg_sec = leg.get("duration", 0)
+            leg_min = max(1, round(leg_sec / 60))
+            dist_m = round(leg.get("distance", 0))
+
+            geom_str = leg.get("legGeometry", {}).get("points", "")
+            pts = decode_polyline(geom_str) if geom_str else []
+            if pts:
+                all_polyline.extend(pts)
+
+            from_name = leg.get("from", {}).get("name", "")
+            to_name = leg.get("to", {}).get("name", "")
+
+            if mode == "BUS":
+                route_num = str(leg.get("routeShortName") or leg.get("route") or "Bus").strip()
+                if route_num and route_num not in bus_services:
+                    bus_services.append(route_num)
+
+                legs.append({
+                    "mode": "BUS",
+                    "name": f"Bus {route_num}: {from_name} to {to_name}",
+                    "line": f"Bus {route_num}",
+                    "duration": f"{leg_min} min",
+                    "distance": f"{dist_m}m",
+                    "sheltered_percent": 100,
+                    "coords": pts,
+                })
+            else:
+                walk_name = f"Walk to {to_name}" if to_name else "Walk to next transfer"
+                legs.append({
+                    "mode": "WALK",
+                    "name": walk_name,
+                    "duration": f"{leg_min} min",
+                    "distance": f"{dist_m}m",
+                    "sheltered_percent": 70,
+                    "coords": pts,
+                })
+
+        title = f"Bus {' -> '.join(bus_services)}" if bus_services else "Public Bus Service"
+        
+        arr_hour = 8 + (total_min // 60)
+        arr_min = total_min % 60
+        ampm = "AM" if arr_hour < 12 else "PM"
+        disp_hour = arr_hour if arr_hour <= 12 else arr_hour - 12
+        arrival_str = f"{disp_hour:02d}:{arr_min:02d} {ampm}"
+
+        return {
+            "id": "bypass_bus10e",
+            "title": title,
+            "transit_type": "Public Bus",
+            "line": "BUS",
+            "lines_used": [f"Bus {s}" for s in bus_services] if bus_services else ["BUS"],
+            "total_duration_min": total_min,
+            "estimated_arrival": arrival_str,
+            "delay_minutes": 0,
+            "status": f"{len(bus_services)} bus connection(s) • Surface road transit",
+            "crowd_level": "l",
+            "is_recommended": False,
+            "sheltered_percent": 65,
+            "legs": legs,
+            "polyline": all_polyline,
+            "walking_paths": {},
+            "stations": [],
+        }
 
     def close(self) -> None:
         """Closes the underlying HTTP session."""

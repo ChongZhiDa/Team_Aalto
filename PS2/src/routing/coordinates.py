@@ -104,12 +104,28 @@ def get_bus10e_polyline() -> List[List[float]]:
     return [w["coords"] for w in BUS_10E_WAYPOINTS]
 
 
+from .canonical_coords import CANONICAL_STATION_COORDS
+
+
+
 def get_station_by_name(name: str) -> Optional[Dict[str, Any]]:
-    """Returns station details (coords, grnd_level) from GeoJSON or corridor list."""
+    """Returns station details (coords, grnd_level) from GeoJSON, corridor list, or canonical registry."""
+    if not name:
+        return None
     meta = get_station_metadata(name)
     if meta:
         return meta
     for s in EWL_STATIONS + DTL_STATIONS:
         if s["name"].lower() == name.lower():
             return s
+    # Direct lookup in canonical Singapore MRT station registry
+    for stn_name, coords in CANONICAL_STATION_COORDS.items():
+        if stn_name.lower() == name.lower():
+            return {
+                "name": stn_name,
+                "coords": coords,
+                "grnd_level": "UNDERGROUND" if any(k in stn_name for k in ["Stevens", "Tan Kah Kee", "Downtown", "Maxwell", "Shenton", "Fort Canning", "Bencoolen", "Raffles", "City Hall", "Bugis"]) else "ABOVEGROUND",
+                "type": "MRT",
+                "is_underground": True,
+            }
     return None

@@ -5,9 +5,9 @@
  * Owned by: Teammate A (Frontend & Mobile UX)
  */
 
-import { MapController } from './map_controller.js';
-import { UIController } from './ui_controller.js';
-import { offlineCache } from './offline_cache.js';
+import { MapController } from './map_controller.js?v=20260919f';
+import { UIController } from './ui_controller.js?v=20260919f';
+import { offlineCache } from './offline_cache.js?v=20260919f';
 
 let currentData = null;
 let currentArbitraryRoute = null;
@@ -37,16 +37,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       uiController.highlightActiveCard(activeRouteId);
       if (isCustomJourneyActive && routeId === 'primary_ewl' && customJourneyResult) {
         mapController.renderCustomRoute(customJourneyResult.route, customJourneyResult.profile);
-      } else if (routeId === 'arbitrary_route' && currentArbitraryRoute) {
-        mapController.renderArbitraryRoute(currentArbitraryRoute);
       } else if (currentData) {
         mapController.renderLayers(currentData, activeRouteId);
+        updateBannerForSelectedRoute(routeId, currentData);
+      } else if (routeId === 'arbitrary_route' && currentArbitraryRoute) {
+        mapController.renderArbitraryRoute(currentArbitraryRoute);
       }
     },
     onToggleAllRoutes: () => {
       if (currentData) {
         const isShowingAll = mapController.toggleAllRoutes(currentData, activeRouteId);
-        uiController.setAllRoutesButtonState(isShowingAll);
+        uiController.setAllRoutesButtonState(isShowingAll, false);
       }
     },
     onOpenScenarios: () => {
@@ -173,6 +174,7 @@ function updateAppView(data) {
   uiController.updateRouteCards(data, activeRouteId);
   uiController.highlightActiveCard(activeRouteId);
   uiController.setAllRoutesButtonState(mapController.showAllRoutes);
+
   mapController.renderLayers(data, activeRouteId);
 
   // Update top bar persona label if profile exists
@@ -182,9 +184,37 @@ function updateAppView(data) {
   }
 }
 
+function updateBannerForSelectedRoute(routeId, data) {
+  const routes = data.routes || {};
+  const selectedRoute = routes[routeId];
+  if (!selectedRoute) return;
+
+  const headline = document.getElementById('alert-headline');
+  const detail = document.getElementById('alert-detail');
+  const statusLabel = document.getElementById('alert-status-label');
+
+  if (headline && selectedRoute.title) {
+    headline.textContent = selectedRoute.title;
+  }
+  if (detail) {
+    const eta = selectedRoute.estimated_arrival ? `ETA: ${selectedRoute.estimated_arrival} (${selectedRoute.total_duration_min} mins)` : `${selectedRoute.total_duration_min} mins`;
+    detail.textContent = `${selectedRoute.status || 'Active Journey'} • ${eta}`;
+  }
+  if (statusLabel) {
+    if (routeId === 'primary_ewl') {
+      statusLabel.textContent = data.decision?.is_delayed ? 'Disrupted (Primary)' : 'Primary Active';
+    } else if (routeId === 'bypass_dtl') {
+      statusLabel.textContent = 'Alternative MRT Active';
+    } else if (routeId === 'bypass_bus10e') {
+      statusLabel.textContent = 'Public Bus Active';
+    }
+  }
+}
+
 async function switchPersona(personaId) {
   isCustomJourneyActive = false;
   customJourneyResult = null;
+  currentArbitraryRoute = null;
   localStorage.removeItem('stationbuddy_custom_journey');
   uiController.setCustomJourneyActive(false);
 
@@ -240,6 +270,7 @@ async function loadAndRenderScenarios() {
 async function switchScenario(scenarioId) {
   isCustomJourneyActive = false;
   customJourneyResult = null;
+  currentArbitraryRoute = null;
   localStorage.removeItem('stationbuddy_custom_journey');
   uiController.setCustomJourneyActive(false);
 
@@ -294,14 +325,22 @@ async function handleLocationChange(origin, dest) {
     return;
   }
 
-  // 1. Recalculate commute status via GET /api/status?origin=...&destination=...
+  currentArbitraryRoute = null;
+  uiController.hideArbitraryRouteCard();
+
+  // Load commute status with the custom origin & destination.
+  // The backend enriches this with full custom routes (primary & alternative),
+  // walking footpaths, and exact coordinates without spikes.
   await loadCommuteStatus(currentArrivalTime, origin, dest);
 
-  // 2. Also update baseline settings in backend
-  await updateSettings({ origin, destination: dest });
-
-  // 3. Query Singapore MRT door-to-door graph router endpoint (/api/route)
-  await queryGraphRoute(origin, dest);
+  // Sync baseline settings to backend silently
+  try {
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ origin, destination: dest, arrival_time: currentArrivalTime })
+    });
+  } catch (_) { /* non-critical */ }
 }
 
 async function queryGraphRoute(origin, dest) {
@@ -322,7 +361,10 @@ async function queryGraphRoute(origin, dest) {
     if (routeData && routeData.legs) {
       currentArbitraryRoute = routeData;
       activeRouteId = 'arbitrary_route';
+      uiController.showOnlyArbitraryRouteCard();
       uiController.renderArbitraryRouteCard(routeData);
+      // No bypass alternatives for arbitrary routes — hide the toggle button
+      uiController.setAllRoutesButtonState(false, true);
 
       if (routeData.polyline && routeData.polyline.length > 0) {
         mapController.renderArbitraryRoute(routeData);

@@ -24,8 +24,8 @@ def normalize_station_name(raw_name: Optional[str]) -> str:
     if not raw_name:
         return ""
     name = raw_name.upper().strip()
-    name = re.sub(r"\s+(MRT|LRT)?\s*(STATION|INTERCHANGE)$", "", name)
-    name = re.sub(r"\s+(MRT|LRT)$", "", name)
+    name = re.sub(r"\s+(MRT|LRT|RAIL)?\s*(STATION|INTERCHANGE)$", "", name)
+    name = re.sub(r"\s+(MRT|LRT|RAIL)$", "", name)
     name = name.strip()
     if name == "ONE NORTH":
         name = "ONE-NORTH"
@@ -138,7 +138,25 @@ def get_station_metadata(station_name: str) -> Optional[Dict[str, Any]]:
     """Returns official GeoJSON metadata (centroid, ground level, type) for a station."""
     stations = load_geojson_stations()
     normalized = normalize_station_name(station_name)
-    return stations.get(normalized)
+    found = stations.get(normalized)
+    if found:
+        return found
+
+    from .canonical_coords import CANONICAL_STATION_COORDS
+    clean_target = normalized.replace("-", " ").strip()
+    for c_name, coords in CANONICAL_STATION_COORDS.items():
+        norm_c = normalize_station_name(c_name).replace("-", " ").strip()
+        if norm_c == clean_target:
+            return {
+                "name": c_name.upper(),
+                "coords": coords,
+                "grnd_level": "UNDERGROUND" if any(k in c_name for k in ["Stevens", "Tan Kah Kee", "Downtown", "Maxwell", "Shenton", "Fort Canning", "Bencoolen", "Raffles", "City Hall", "Bugis", "Newton", "Little India", "Rochor", "Promenade", "Bayfront", "Telok Ayer"]) else "ABOVEGROUND",
+                "type": "MRT",
+                "polygon": None,
+                "area": 0.0,
+                "object_id": 0,
+            }
+    return None
 
 
 def find_nearest_station(lat: float, lon: float) -> Tuple[Optional[Dict[str, Any]], float]:
