@@ -11,6 +11,7 @@ import { offlineCache } from './offline_cache.js?v=20260919i';
 
 let currentData = null;
 let currentArbitraryRoute = null;
+let currentSearchedRoutes = [];
 let activeRouteId = 'primary_ewl';
 let currentArrivalTime = '08:45 AM';
 let currentOrigin = 'Blk 230 Tampines St 21 (Home)';
@@ -64,6 +65,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     },
     onLocationChange: async (origin, dest) => {
       await handleLocationChange(origin, dest);
+    },
+    onSelectSearchedRoute: (routeIndex) => {
+      const selected = currentSearchedRoutes[routeIndex];
+      if (!selected) return;
+      currentArbitraryRoute = selected;
+      uiController.renderArbitraryRouteCard(selected, currentSearchedRoutes);
+      mapController.renderArbitraryRoute(selected);
     },
     onRecenter: () => {
       mapController.panToCenter();
@@ -348,8 +356,8 @@ async function handleLocationChange(origin, dest) {
 }
 
 async function queryGraphRoute(origin, dest) {
-  const origQuery = uiController.extractStationName(origin) || origin;
-  const destQuery = uiController.extractStationName(dest) || dest;
+  const origQuery = origin;
+  const destQuery = dest;
   if (!origQuery || !destQuery) return;
 
   try {
@@ -364,11 +372,9 @@ async function queryGraphRoute(origin, dest) {
     const routeData = await resp.json();
     if (routeData && routeData.legs) {
       currentArbitraryRoute = routeData;
+      currentSearchedRoutes = [routeData, ...(routeData.alternatives || [])];
       activeRouteId = 'arbitrary_route';
-      uiController.showOnlyArbitraryRouteCard();
-      uiController.renderArbitraryRouteCard(routeData);
-      // No bypass alternatives for arbitrary routes — hide the toggle button
-      uiController.setAllRoutesButtonState(false, true);
+      uiController.renderArbitraryRouteCard(routeData, currentSearchedRoutes);
 
       if (routeData.polyline && routeData.polyline.length > 0) {
         mapController.renderArbitraryRoute(routeData);
