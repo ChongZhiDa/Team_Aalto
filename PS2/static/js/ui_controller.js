@@ -263,7 +263,16 @@ export class UIController {
     });
     document.getElementById('scheduled-routes-edit-btn')?.addEventListener('click', () => {
       document.getElementById('scheduled-routes-home-panel')?.classList.add('hidden');
-      this.openPersonaDrawer();
+      this.openScheduleDrawer();
+    });
+    document.getElementById('btn-open-schedule-drawer')?.addEventListener('click', () => {
+      this.openScheduleDrawer();
+    });
+    document.getElementById('schedule-drawer-close-btn')?.addEventListener('click', () => {
+      this.closeScheduleDrawer();
+    });
+    document.getElementById('schedule-drawer-close-btn-secondary')?.addEventListener('click', () => {
+      this.closeScheduleDrawer();
     });
 
     // Persona Customizer drawer open / close
@@ -323,7 +332,7 @@ export class UIController {
     document.getElementById('btn-reset-standard-commute')?.addEventListener('click', triggerResetCommute);
     document.getElementById('btn-reset-standard-commute-bottom')?.addEventListener('click', triggerResetCommute);
 
-    ['rachel', 'arjun', 'mdm_lim'].forEach((pId) => {
+    ['rachel'].forEach((pId) => {
       const btn = document.getElementById(`btn-persona-${pId.replace('_', '-')}`);
       btn?.addEventListener('click', () => {
         if (this.handlers.onSelectPersona) this.handlers.onSelectPersona(pId);
@@ -336,11 +345,16 @@ export class UIController {
     this.setupAutocomplete('route-plan-origin', 'route-plan-origin-suggestions');
     this.setupAutocomplete('route-plan-destination', 'route-plan-destination-suggestions');
 
-    const identitySection = document.getElementById('persona-identity-section');
-    const scheduledRoutesSection = document.getElementById('scheduled-routes-section');
-    if (identitySection && scheduledRoutesSection) {
-      identitySection.parentNode.insertBefore(scheduledRoutesSection, identitySection.nextSibling);
-    }
+  }
+
+  openScheduleDrawer() {
+    const drawer = document.getElementById('schedule-drawer');
+    drawer?.classList.remove('hidden');
+  }
+
+  closeScheduleDrawer() {
+    const drawer = document.getElementById('schedule-drawer');
+    drawer?.classList.add('hidden');
   }
 
   setupAutocomplete(inputId, dropdownId) {

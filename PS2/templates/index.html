@@ -493,18 +493,10 @@
           <span class="flex items-center gap-1.5"><i class="fa-solid fa-user text-indigo-400"></i> Active Commuter Persona</span>
           <span class="text-[10px] text-slate-500 font-normal">Switch Profile</span>
         </div>
-        <div class="grid grid-cols-3 gap-2">
+        <div class="grid grid-cols-1 gap-2">
           <button id="btn-persona-rachel" class="persona-btn p-2 rounded-lg border bg-indigo-950/80 border-indigo-500 text-white text-left flex flex-col transition ring-1 ring-indigo-400/50">
             <span class="font-bold text-xs">Rachel</span>
             <span class="text-[9px] text-emerald-400">EWL Direct</span>
-          </button>
-          <button id="btn-persona-arjun" class="persona-btn p-2 rounded-lg border bg-slate-800/60 border-slate-700 text-slate-300 text-left flex flex-col transition hover:text-white">
-            <span class="font-bold text-xs">Arjun</span>
-            <span class="text-[9px] text-blue-400">Cycle + CCL</span>
-          </button>
-          <button id="btn-persona-mdm-lim" class="persona-btn p-2 rounded-lg border bg-slate-800/60 border-slate-700 text-slate-300 text-left flex flex-col transition hover:text-white">
-            <span class="font-bold text-xs">Mdm Lim</span>
-            <span class="text-[9px] text-amber-400">Step-Free</span>
           </button>
         </div>
         <button id="btn-open-persona-drawer-from-scenarios" type="button" class="w-full mt-1 py-1.5 px-2 text-[11px] bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 rounded-lg border border-indigo-700/60 flex items-center justify-center gap-1.5 transition">
@@ -685,12 +677,59 @@
 
       </form>
 
-      <!-- Recurring door-to-door commute plans -->
+      <button id="btn-open-schedule-drawer" type="button" class="w-full bg-cyan-950/70 hover:bg-cyan-900/80 border border-cyan-700/70 text-cyan-200 rounded-lg py-1.5 text-[11px] font-semibold">
+        <i class="fa-solid fa-calendar-days mr-1"></i> Manage Scheduled Routes
+      </button>
+
+      <!-- Action Buttons Footer -->
+      <div class="pt-2 border-t border-slate-800 flex flex-col gap-2">
+        <div class="flex items-center gap-2">
+          <button id="btn-submit-custom-route" type="button" class="flex-1 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold py-2 px-3 rounded-xl text-xs shadow-lg flex items-center justify-center gap-1.5 transition">
+            <i class="fa-solid fa-route"></i>
+            <span>Plan Custom Journey</span>
+          </button>
+          <button id="btn-save-persona" type="button" title="Save profile to disk and memory" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl text-xs text-slate-200 font-medium flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-floppy-disk text-indigo-400"></i>
+            <span>Save</span>
+          </button>
+          <button id="btn-load-persona" type="button" title="Load profiles from disk" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl text-xs text-slate-200 font-medium flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-folder-open text-amber-400"></i>
+            <span>Load</span>
+          </button>
+        </div>
+        <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+          <span id="persona-save-status" class="text-[10px] text-emerald-400 truncate"></span>
+          <button id="btn-reset-standard-commute" type="button" class="text-slate-400 hover:text-slate-200 text-[10px] underline flex items-center gap-1">
+            <i class="fa-solid fa-rotate-left text-[9px]"></i> Reset to Live Default Commute
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="schedule-drawer" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex flex-col justify-end hidden transition-opacity">
+    <div class="bg-slate-900 border-t border-slate-700 rounded-t-2xl p-4 max-w-lg mx-auto w-full shadow-2xl flex flex-col gap-3 max-h-[88vh] overflow-y-auto">
+      <div class="sticky top-0 z-40 flex items-center justify-between pb-2 border-b border-slate-800 bg-slate-900/95 backdrop-blur-md">
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 rounded-full bg-cyan-600/30 border border-cyan-500/60 flex items-center justify-center text-cyan-400 text-xs">
+            <i class="fa-solid fa-calendar-days"></i>
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-white leading-none">Scheduled Routes</h2>
+            <span class="text-[10px] text-slate-400">Next-day disruption checks</span>
+          </div>
+        </div>
+        <button id="schedule-drawer-close-btn" class="w-8 h-8 rounded-full bg-slate-800/95 border border-slate-600 text-slate-300 flex items-center justify-center hover:text-white hover:bg-slate-700 transition shadow-lg">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
       <section id="scheduled-routes-section" class="bg-slate-800/40 p-2.5 rounded-xl border border-slate-800 flex flex-col gap-2">
         <div class="flex items-center justify-between">
           <div>
             <h3 class="text-[11px] font-bold text-slate-200 flex items-center gap-1.5">
-              <i class="fa-solid fa-calendar-days text-cyan-400"></i> Scheduled Routes
+              <i class="fa-solid fa-calendar-days text-cyan-400"></i> Saved Commute Plans
             </h3>
             <p class="text-[10px] text-slate-500">Routes used on selected days are checked for next-day disruptions.</p>
           </div>
@@ -732,30 +771,11 @@
         <div id="next-day-notification" class="hidden rounded-lg border border-amber-700/70 bg-amber-950/50 text-amber-200 p-2 text-[10px]"></div>
       </section>
 
-      <!-- Action Buttons Footer -->
-      <div class="pt-2 border-t border-slate-800 flex flex-col gap-2">
-        <div class="flex items-center gap-2">
-          <button id="btn-submit-custom-route" type="button" class="flex-1 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold py-2 px-3 rounded-xl text-xs shadow-lg flex items-center justify-center gap-1.5 transition">
-            <i class="fa-solid fa-route"></i>
-            <span>Plan Custom Journey</span>
-          </button>
-          <button id="btn-save-persona" type="button" title="Save profile to disk and memory" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl text-xs text-slate-200 font-medium flex items-center gap-1.5 transition">
-            <i class="fa-solid fa-floppy-disk text-indigo-400"></i>
-            <span>Save</span>
-          </button>
-          <button id="btn-load-persona" type="button" title="Load profiles from disk" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl text-xs text-slate-200 font-medium flex items-center gap-1.5 transition">
-            <i class="fa-solid fa-folder-open text-amber-400"></i>
-            <span>Load</span>
-          </button>
-        </div>
-        <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-          <span id="persona-save-status" class="text-[10px] text-emerald-400 truncate"></span>
-          <button id="btn-reset-standard-commute" type="button" class="text-slate-400 hover:text-slate-200 text-[10px] underline flex items-center gap-1">
-            <i class="fa-solid fa-rotate-left text-[9px]"></i> Reset to Live Default Commute
-          </button>
-        </div>
+      <div class="pt-2 border-t border-slate-800 flex items-center justify-end gap-2">
+        <button id="schedule-drawer-close-btn-secondary" type="button" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl text-xs text-slate-200 font-medium">
+          Close
+        </button>
       </div>
-
     </div>
   </div>
 

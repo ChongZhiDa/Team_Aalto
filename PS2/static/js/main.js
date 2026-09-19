@@ -190,7 +190,7 @@ async function loadCommuteStatus(arrivalTime = currentArrivalTime, origin = curr
   }
 }
 
-const PERSONA_CYCLE = ['rachel', 'arjun', 'mdm_lim'];
+const PERSONA_CYCLE = ['rachel'];
 
 function updateAppView(data) {
   const routes = data.routes || {};
