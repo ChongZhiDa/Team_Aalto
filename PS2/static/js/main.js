@@ -22,6 +22,8 @@ let isCustomJourneyActive = false;
 let customJourneyResult = null;
 let savedPersonas = [];
 let activeCustomPersonaId = 'rachel';
+let simulatedDate = '';
+let simulatedTime = '';
 
 let mapController;
 let uiController;
@@ -57,6 +59,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     onThresholdChange: async (threshold) => {
       await updateSettings({ delay_threshold_min: threshold });
     },
+    onSimulationChange: async (date, time) => {
+      simulatedDate = date || '';
+      simulatedTime = time || '';
+      await checkNextDayNotifications(activeCustomPersonaId, simulatedDate, simulatedTime);
+    },
     onArrivalChange: async (newTime) => {
       currentArrivalTime = newTime;
       if (!isCustomJourneyActive) {
@@ -72,6 +79,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       currentArbitraryRoute = selected;
       uiController.renderArbitraryRouteCard(selected, currentSearchedRoutes);
       mapController.renderArbitraryRoute(selected);
+    },
+    onSelectScheduledRoute: async (plan) => {
+      await loadScheduledRoute(plan);
+    },
+    onSelectNotificationRoute: async (notification) => {
+      await loadNotificationReplacement(notification);
     },
     onRecenter: () => {
       mapController.panToCenter();
@@ -110,6 +123,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 4. Initial Personas Load from Flask Adapter (/api/custom/personas)
   await loadCustomPersonas();
+  window.setInterval(() => {
+    checkNextDayNotifications(activeCustomPersonaId, simulatedDate, simulatedTime);
+  }, 5 * 60 * 1000);
 
   // 5. Initial Data Load (Check for active custom journey in localStorage first)
   const savedCustom = localStorage.getItem('stationbuddy_custom_journey');
@@ -332,6 +348,7 @@ async function updateSettings(settings) {
       currentData = res.data;
       offlineCache.save(currentData);
       updateAppView(currentData);
+      await checkNextDayNotifications(activeCustomPersonaId, simulatedDate, simulatedTime);
     }
   } catch (err) {
     console.error('Settings update failed:', err);
@@ -452,7 +469,14 @@ async function loadCustomPersonas() {
           activeCustomPersonaId = stored.id;
           const existIdx = savedPersonas.findIndex(p => p.id === stored.id);
           if (existIdx >= 0) {
-            savedPersonas[existIdx] = { ...savedPersonas[existIdx], ...stored };
+            savedPersonas[existIdx] = {
+              ...savedPersonas[existIdx],
+              ...stored,
+              scheduled_routes: stored.scheduled_routes?.length
+                ? stored.scheduled_routes
+                : (savedPersonas[existIdx].scheduled_routes || [])
+            };
+            profileToFill = savedPersonas[existIdx];
           } else {
             savedPersonas.push(stored);
           }
@@ -465,6 +489,7 @@ async function loadCustomPersonas() {
     uiController.populatePersonaDropdown(savedPersonas, activeCustomPersonaId);
     if (profileToFill) {
       uiController.fillPersonaForm(profileToFill);
+      await checkNextDayNotifications(profileToFill.id || activeCustomPersonaId);
     }
   } catch (err) {
     console.warn('Failed to load custom personas:', err);
@@ -479,6 +504,7 @@ async function handleSelectPersonaDropdown(personaId) {
   const profile = savedPersonas.find(p => p.id === personaId);
   if (profile) {
     uiController.fillPersonaForm(profile);
+    await checkNextDayNotifications(personaId);
     if (profile.origin) {
       currentOrigin = profile.origin;
       const oInput = document.getElementById('origin-input');
@@ -617,10 +643,11 @@ async function handleSavePersona() {
 
     // 1. Update or register persona on backend
     try {
+      const { id: _profileId, ...profileChanges } = updatedProfile;
       const putResp = await fetch(`/api/custom/personas/${encodeURIComponent(activeCustomPersonaId)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedProfile)
+        body: JSON.stringify(profileChanges)
       });
       if (!putResp.ok && putResp.status === 404) {
         await fetch('/api/custom/personas', {
@@ -656,10 +683,62 @@ async function handleSavePersona() {
 
     uiController.populatePersonaDropdown(savedPersonas, activeCustomPersonaId);
     uiController.showPersonaSaveStatus('Preferences saved successfully!');
+    await checkNextDayNotifications(activeCustomPersonaId);
   } catch (err) {
     console.error('Save persona failed:', err);
     uiController.showPersonaSaveStatus('Failed to save: ' + err.message, true);
   }
+}
+
+async function checkNextDayNotifications(personaId, date = simulatedDate, time = simulatedTime) {
+  try {
+    const params = new URLSearchParams({ persona_id: personaId || 'rachel' });
+    if (date) params.set('date', date);
+    if (time) params.set('time', time);
+    const resp = await fetch(`/api/custom/notifications/next-day?${params.toString()}`);
+    if (resp.ok) uiController.showNextDayNotifications(await resp.json());
+  } catch (err) {
+    console.warn('Next-day notification check failed:', err);
+  }
+}
+
+async function loadScheduledRoute(plan) {
+  if (!plan?.origin || !plan?.destination) return;
+  try {
+    const params = new URLSearchParams({ origin: plan.origin, destination: plan.destination });
+    const response = await fetch(`/api/route?${params.toString()}`);
+    const route = await response.json();
+    if (!response.ok || route.error) {
+      uiController.showPersonaSaveStatus(route.message || 'Could not load scheduled route.', true);
+      return;
+    }
+    currentOrigin = plan.origin;
+    currentDest = plan.destination;
+    currentArbitraryRoute = route;
+    currentSearchedRoutes = [route, ...(route.alternatives || [])];
+    document.getElementById('origin-input').value = plan.origin;
+    document.getElementById('dest-input').value = plan.destination;
+    uiController.renderArbitraryRouteCard(route, currentSearchedRoutes);
+    mapController.renderArbitraryRoute(route);
+    uiController.closePersonaDrawer();
+  } catch (error) {
+    uiController.showPersonaSaveStatus(`Could not load scheduled route: ${error.message}`, true);
+  }
+}
+
+async function loadNotificationReplacement(notification) {
+  const route = notification?.replacement_route;
+  if (!route) return;
+  currentOrigin = notification.origin;
+  currentDest = notification.destination;
+  currentArbitraryRoute = route;
+  currentSearchedRoutes = [route];
+  document.getElementById('origin-input').value = notification.origin || '';
+  document.getElementById('dest-input').value = notification.destination || '';
+  uiController.renderArbitraryRouteCard(route, currentSearchedRoutes);
+  mapController.renderArbitraryRoute(route);
+  document.getElementById('homepage-notification-balloon')?.classList.add('hidden');
+  uiController.closePersonaDrawer();
 }
 
 /**

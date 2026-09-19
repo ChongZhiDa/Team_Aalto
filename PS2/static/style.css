@@ -98,3 +98,77 @@ body {
   border-radius: 4px;
 }
 
+@media (max-width: 640px) {
+  #homepage-overlay {
+    padding: 0.5rem;
+  }
+
+  #homepage-overlay > div:first-child {
+    gap: 0.25rem;
+  }
+
+  #homepage-quick-controls {
+    flex: 1;
+    justify-content: flex-end;
+    gap: 0.25rem;
+  }
+
+  #homepage-quick-controls > button,
+  #homepage-quick-controls > div > button {
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+
+  #homepage-quick-controls #persona-toggle-btn {
+    max-width: 5.5rem;
+  }
+
+  #homepage-quick-controls #persona-toggle-btn #active-persona-label {
+    display: inline-block;
+    max-width: 3.5rem;
+  }
+
+  #homepage-quick-controls #scenario-toggle-btn span {
+    display: none;
+  }
+
+  #homepage-quick-controls #scenario-toggle-btn {
+    width: 2rem;
+    justify-content: center;
+  }
+
+  #simulation-clock-label,
+  #active-persona-label {
+    max-width: 7rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #homepage-notification-balloon {
+    width: calc(100vw - 1rem);
+    max-height: 10rem;
+    overflow-y: auto;
+  }
+
+  #bottom-sheet {
+    max-height: 46vh;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  #route-cards-list {
+    min-width: 0;
+  }
+
+  .route-card {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  #persona-drawer > div {
+    max-height: 92vh;
+    padding: 0.75rem;
+  }
+}
+

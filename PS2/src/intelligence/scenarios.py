@@ -59,10 +59,12 @@ SCENARIOS: Dict[str, Dict[str, Any]] = {
     },
     SCENARIO_EWL_FAULT: {
         "id": SCENARIO_EWL_FAULT,
-        "name": "EWL Track Point Fault (+25 min)",
+        "name": "Whole EWL Line Failure (+25 min)",
         "badge": "Disruption Scenario",
-        "description": "Signaling/track fault between Bedok and Bugis. Delays Rachel by 25 min (arrival 08:47 AM, missing her 08:45 desk deadline). Triggers high-urgency proactive bypass.",
+        "description": "The entire East-West Line is unavailable. Scheduled EWL commutes receive an alternative route with updated departure and arrival times.",
         "simulated_time": "07:20 AM",
+        "whole_line_failure": True,
+        "disrupted_line": "EWL",
         "alerts": {
             "Status": 2,
             "AffectedSegments": [
@@ -77,7 +79,7 @@ SCENARIOS: Dict[str, Dict[str, Any]] = {
             ],
             "Message": [
                 {
-                    "Content": "[SMRT] EWL Update: Due to a track point fault near Kembangan, please add 25 to 30 mins travel time between Bedok and Bugis. Free regular bus service is available. Station staff are assisting.",
+                    "Content": "[SMRT] EWL Update: The East-West Line is unavailable across the whole line. Please use alternative MRT or bus services and allow additional travel time.",
                     "CreatedDate": "2026-09-18 07:14:22"
                 }
             ]

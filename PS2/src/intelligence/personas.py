@@ -63,6 +63,7 @@ class CommuterProfile:
     transfer_station: Optional[str] = None
     alternative_route_name: Optional[str] = None
     alternative_recommendation: str = "ALTERNATIVE_ROUTE"
+    scheduled_routes: List[Dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         for key in ("id", "name", "persona", "origin", "destination",
@@ -123,6 +124,20 @@ class CommuterProfile:
         self.allowed_modes = list(dict.fromkeys(str(mode).upper() for mode in self.allowed_modes))
         if set(self.allowed_modes) - {"WALK", "TRAIN", "CYCLE", "BUS"}:
             raise ValueError("allowed_modes supports WALK, TRAIN, CYCLE and BUS")
+        if not isinstance(self.scheduled_routes, list):
+            raise ValueError("scheduled_routes must be a list")
+        for route in self.scheduled_routes:
+            if not isinstance(route, dict):
+                raise ValueError("scheduled_routes entries must be objects")
+            for key in ("origin", "destination", "arrival_time"):
+                if not str(route.get(key, "")).strip():
+                    raise ValueError(f"scheduled route {key} is required")
+            days = route.get("days", [])
+            if not isinstance(days, list) or not days:
+                raise ValueError("scheduled route days must be a non-empty list")
+            if any(str(day).lower()[:3] not in {"mon", "tue", "wed", "thu", "fri", "sat", "sun"} for day in days):
+                raise ValueError("scheduled route days must use Mon-Sun")
+            parse_profile_time(str(route["arrival_time"]))
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

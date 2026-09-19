@@ -4,6 +4,7 @@ Main Flask server providing REST API and mobile-optimized frontend.
 """
 
 import os
+from datetime import datetime, timedelta
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -12,11 +13,12 @@ except ImportError:
 
 from flask import Flask, render_template, jsonify, request
 from src.engine import CommuterEngine, RACHEL_PROFILE
-from src.scenarios import list_scenarios, SCENARIO_NORMAL
+from src.scenarios import list_scenarios, get_scenario, SCENARIO_NORMAL
 from src.canonical_lines import LINE_COLORS
 from src.routing.multimodal_router import MultimodalRouter
 from src.routing.location_resolver import suggest_locations
 from src.intelligence.custom_route_adapter import register_custom_route_adapter
+from src.intelligence.personas import get_persona
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 register_custom_route_adapter(app)
@@ -315,6 +317,90 @@ def get_scenarios():
     return jsonify({
         "current": engine.current_scenario_id,
         "scenarios": list_scenarios()
+    })
+
+
+@app.route("/api/custom/notifications/next-day", methods=["GET"])
+def get_next_day_notifications():
+    """Evaluate saved commute plans that are scheduled for tomorrow."""
+    persona_id = request.args.get("persona_id", "rachel")
+    profile = get_persona(persona_id)
+    simulated_date = request.args.get("date")
+    try:
+        base_date = datetime.strptime(simulated_date, "%Y-%m-%d") if simulated_date else datetime.now()
+    except ValueError:
+        base_date = datetime.now()
+    tomorrow = base_date + timedelta(days=1)
+    day_code = tomorrow.strftime("%a").lower()[:3]
+    notifications = []
+    scenario = get_scenario(engine.current_scenario_id)
+    disrupted_line = scenario.get("disrupted_line") if scenario else None
+    whole_line_failure = bool(scenario and scenario.get("whole_line_failure"))
+
+    def time_to_minutes(value):
+        parsed = datetime.strptime(str(value).strip().upper(), "%H:%M") if len(str(value).strip()) == 5 else datetime.strptime(str(value).strip().upper(), "%I:%M %p")
+        return parsed.hour * 60 + parsed.minute
+
+    def minutes_to_time(value):
+        value %= 1440
+        return datetime(2000, 1, 1, value // 60, value % 60).strftime("%I:%M %p")
+
+    for plan in profile.get("scheduled_routes", []):
+        plan_days = [str(day).lower()[:3] for day in plan.get("days", [])]
+        if not plan.get("enabled", True) or day_code not in plan_days:
+            continue
+        evaluation = engine.evaluate_commute(
+            custom_arrival=plan.get("arrival_time"),
+            custom_origin=plan.get("origin"),
+            custom_dest=plan.get("destination"),
+            custom_persona=persona_id,
+        )
+        evaluation = _enrich_evaluation_with_custom_route(
+            evaluation, plan.get("origin"), plan.get("destination")
+        )
+        decision = evaluation.get("decision", {})
+        affected_route = _router.route_door_to_door(plan.get("origin"), plan.get("destination"))
+        route_lines = set(affected_route.get("lines_used", [])) if affected_route else set()
+        route_affected = not whole_line_failure or not disrupted_line or disrupted_line in route_lines
+        if route_affected and (decision.get("is_delayed") or decision.get("notification_action") == "PROACTIVE_PUSH_FIRED"):
+            arrival_minutes = time_to_minutes(plan.get("arrival_time", "08:45"))
+            replacement_route = _router.route_door_to_door(
+                plan.get("origin"), plan.get("destination"), disrupted_line=disrupted_line
+            ) if disrupted_line else None
+
+            selected_replacement = replacement_route or (affected_route.get("alternatives", [None])[0] if affected_route else None)
+            if selected_replacement:
+                replacement_duration = int(selected_replacement.get("total_duration_min", 0))
+                selected_replacement = {**selected_replacement,
+                    "departure_time": minutes_to_time(arrival_minutes - replacement_duration),
+                    "estimated_arrival": minutes_to_time(arrival_minutes)}
+            notifications.append({
+                "plan_id": plan.get("id"),
+                "label": plan.get("label") or f"{plan.get('origin')} to {plan.get('destination')}",
+                "origin": plan.get("origin"),
+                "destination": plan.get("destination"),
+                "arrival_time": plan.get("arrival_time"),
+                "headline": decision.get("headline"),
+                "advice": decision.get("one_line_advice"),
+                "delay_minutes": decision.get("delay_minutes", 0),
+                "notification_action": decision.get("notification_action"),
+                "affected_route": {
+                    "title": affected_route.get("title") if affected_route else "Current scheduled route",
+                    "duration_min": affected_route.get("total_duration_min") if affected_route else None,
+                    "lines_used": affected_route.get("lines_used", []) if affected_route else [],
+                },
+                "replacement_route": selected_replacement,
+                "replacement_departure": selected_replacement.get("departure_time") if selected_replacement else None,
+                "replacement_arrival": selected_replacement.get("estimated_arrival") if selected_replacement else None,
+                "whole_line_failure": whole_line_failure,
+                "disrupted_line": disrupted_line,
+            })
+
+    return jsonify({
+        "status": "success",
+        "date": tomorrow.strftime("%Y-%m-%d"),
+        "day": day_code,
+        "notifications": notifications,
     })
 
 

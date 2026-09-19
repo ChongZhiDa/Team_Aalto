@@ -212,6 +212,37 @@ export class UIController {
       drawer?.classList.add('hidden');
     });
 
+    // Simulated clock for testing recurring commute plans.
+    const clockButton = document.getElementById('simulation-clock-btn');
+    const clockPanel = document.getElementById('simulation-clock-panel');
+    const dateInput = document.getElementById('simulation-date');
+    const timeInput = document.getElementById('simulation-time');
+    const clockLabel = document.getElementById('simulation-clock-label');
+    const pad = (value) => String(value).padStart(2, '0');
+    const now = new Date();
+    const today = () => `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const currentTime = () => `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const updateClockLabel = () => {
+      if (!clockLabel || !dateInput?.value || !timeInput?.value) return;
+      const date = new Date(`${dateInput.value}T${timeInput.value}`);
+      clockLabel.textContent = Number.isNaN(date.getTime()) ? 'Now' : date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    };
+    if (dateInput) dateInput.value = today();
+    if (timeInput) timeInput.value = currentTime();
+    updateClockLabel();
+    clockButton?.addEventListener('click', () => clockPanel?.classList.toggle('hidden'));
+    document.getElementById('simulation-apply-btn')?.addEventListener('click', () => {
+      updateClockLabel();
+      clockPanel?.classList.add('hidden');
+      if (this.handlers.onSimulationChange) this.handlers.onSimulationChange(dateInput?.value, timeInput?.value);
+    });
+    document.getElementById('simulation-reset-btn')?.addEventListener('click', () => {
+      if (dateInput) dateInput.value = today();
+      if (timeInput) timeInput.value = currentTime();
+      updateClockLabel();
+      if (this.handlers.onSimulationChange) this.handlers.onSimulationChange(dateInput?.value, timeInput?.value);
+    });
+
     // Threshold dropdown
     document.getElementById('select-noise-threshold')?.addEventListener('change', (e) => {
       if (this.handlers.onThresholdChange) this.handlers.onThresholdChange(e.target.value);
@@ -220,6 +251,14 @@ export class UIController {
     // Persona toggle button & drawer buttons (Step A / C)
     const personaToggleBtn = document.getElementById('persona-toggle-btn');
     personaToggleBtn?.addEventListener('click', () => {
+      this.openPersonaDrawer();
+    });
+
+    document.getElementById('scheduled-routes-home-btn')?.addEventListener('click', () => {
+      document.getElementById('scheduled-routes-home-panel')?.classList.toggle('hidden');
+    });
+    document.getElementById('scheduled-routes-edit-btn')?.addEventListener('click', () => {
+      document.getElementById('scheduled-routes-home-panel')?.classList.add('hidden');
       this.openPersonaDrawer();
     });
 
@@ -247,6 +286,15 @@ export class UIController {
     // New persona button
     document.getElementById('btn-new-persona')?.addEventListener('click', () => {
       if (this.handlers.onNewPersona) this.handlers.onNewPersona();
+    });
+
+    document.getElementById('btn-add-scheduled-route')?.addEventListener('click', () => {
+      const route = this.readScheduledRouteForm();
+      if (!route) return;
+      this.scheduledRoutes = [...(this.scheduledRoutes || []), route];
+      this.renderScheduledRoutes();
+      this.clearScheduledRouteForm();
+      this.showPersonaSaveStatus('Route plan added. Save the persona to keep it.');
     });
 
     // Submit custom journey calculation
@@ -281,6 +329,14 @@ export class UIController {
     // Autocomplete dropdowns for search inputs
     this.setupAutocomplete('origin-input', 'origin-suggestions');
     this.setupAutocomplete('dest-input', 'dest-suggestions');
+    this.setupAutocomplete('route-plan-origin', 'route-plan-origin-suggestions');
+    this.setupAutocomplete('route-plan-destination', 'route-plan-destination-suggestions');
+
+    const identitySection = document.getElementById('persona-identity-section');
+    const scheduledRoutesSection = document.getElementById('scheduled-routes-section');
+    if (identitySection && scheduledRoutesSection) {
+      identitySection.parentNode.insertBefore(scheduledRoutesSection, identitySection.nextSibling);
+    }
   }
 
   setupAutocomplete(inputId, dropdownId) {
@@ -345,10 +401,12 @@ export class UIController {
           if (val) {
             input.value = val;
             dropdown.classList.add('hidden');
-            const originInput = document.getElementById('origin-input');
-            const destInput = document.getElementById('dest-input');
-            if (this.handlers.onLocationChange && originInput && destInput) {
-              this.handlers.onLocationChange(originInput.value, destInput.value);
+            if (inputId === 'origin-input' || inputId === 'dest-input') {
+              const originInput = document.getElementById('origin-input');
+              const destInput = document.getElementById('dest-input');
+              if (this.handlers.onLocationChange && originInput && destInput) {
+                this.handlers.onLocationChange(originInput.value, destInput.value);
+              }
             }
           }
         });
@@ -1310,7 +1368,8 @@ export class UIController {
     const alternativesContainer = document.getElementById('arbitrary-alternatives-container');
 
     if (titleEl) titleEl.textContent = routeData.title || 'Arbitrary Graph Route';
-    if (metaEl) metaEl.textContent = `${routeData.status || ''} • ${routeData.total_duration_min} mins total`;
+      const departure = this.deriveDepartureTime(routeData.estimated_arrival, routeData.total_duration_min);
+      metaEl.textContent = `${departure ? `Departs ${departure} • ` : ''}${routeData.status || ''} • ${routeData.total_duration_min} mins total`;
     if (arrivalEl) arrivalEl.textContent = routeData.estimated_arrival || '--:-- AM';
     if (statusEl) statusEl.textContent = `${routeData.total_duration_min} min path`;
     if (shelterChip && routeData.sheltered_percent) {
@@ -1668,6 +1727,9 @@ export class UIController {
     setChecked('pref-stair-aversion', profile.stair_aversion);
     setChecked('pref-cycling-enabled', profile.cycling_enabled);
     setChecked('pref-avoid-cycling-rain', profile.avoid_cycling_in_rain !== false);
+    this.scheduledRoutes = Array.isArray(profile.scheduled_routes) ? profile.scheduled_routes : [];
+    this.renderScheduledRoutes();
+    this.renderHomepageScheduledRoutes();
   }
 
   readPersonaForm() {
@@ -1696,8 +1758,169 @@ export class UIController {
       crowd_tolerance: getVal('pref-crowd-tolerance') || 'normal',
       crowd_advance_lead_min: Math.round(getNum('pref-crowd-advance-lead') || 10),
       delay_threshold_min: Math.round(getNum('pref-delay-threshold') || 15),
-      rain_active: getChecked('pref-rain-active')
+      rain_active: getChecked('pref-rain-active'),
+      scheduled_routes: this.scheduledRoutes || []
     };
+  }
+
+  readScheduledRouteForm() {
+    const get = (id) => document.getElementById(id)?.value?.trim() || '';
+    const origin = get('route-plan-origin');
+    const destination = get('route-plan-destination');
+    const arrivalTime = get('route-plan-arrival');
+    if (!origin || !destination || !arrivalTime) {
+      this.showPersonaSaveStatus('Add origin, destination, and arrival time first.', true);
+      return null;
+    }
+    const days = [...document.querySelectorAll('.route-plan-day:checked')].map((el) => el.value);
+    if (!days.length) {
+      this.showPersonaSaveStatus('Select at least one route day.', true);
+      return null;
+    }
+    return {
+      id: `route_${Date.now()}`,
+      label: get('route-plan-label') || `${origin} to ${destination}`,
+      origin,
+      destination,
+      arrival_time: arrivalTime,
+      days,
+      enabled: true
+    };
+  }
+
+  deriveDepartureTime(arrivalTime, durationMinutes) {
+    if (!arrivalTime || !Number.isFinite(Number(durationMinutes))) return '';
+    const match = String(arrivalTime).match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (!match) return '';
+    let hours = Number(match[1]) % 12;
+    if (match[3].toUpperCase() === 'PM') hours += 12;
+    const total = (hours * 60 + Number(match[2]) - Number(durationMinutes) + 1440) % 1440;
+    const outputHour = Math.floor(total / 60);
+    const suffix = outputHour >= 12 ? 'PM' : 'AM';
+    const displayHour = outputHour % 12 || 12;
+    return `${String(displayHour).padStart(2, '0')}:${String(total % 60).padStart(2, '0')} ${suffix}`;
+  }
+
+  clearScheduledRouteForm() {
+    ['route-plan-label', 'route-plan-origin', 'route-plan-destination'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    document.querySelectorAll('.route-plan-day').forEach((el) => { el.checked = el.value === 'mon'; });
+  }
+
+  renderScheduledRoutes() {
+    const list = document.getElementById('scheduled-route-list');
+    const count = document.getElementById('scheduled-route-count');
+    const routes = this.scheduledRoutes || [];
+    if (count) count.textContent = `${routes.length} plan${routes.length === 1 ? '' : 's'}`;
+    this.renderHomepageScheduledRoutes();
+    if (!list) return;
+    list.innerHTML = routes.map((route) => `
+      <div class="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/70 px-2 py-1.5">
+        <input type="checkbox" class="scheduled-route-enabled accent-cyan-500" data-route-id="${this.escapeHtml(route.id)}" ${route.enabled !== false ? 'checked' : ''} title="Enable plan" />
+        <div class="min-w-0 flex-1">
+          <div class="text-[11px] font-semibold text-slate-100 truncate">${this.escapeHtml(route.label)}</div>
+          <div class="text-[9px] text-slate-400 truncate">${this.escapeHtml(route.origin)} → ${this.escapeHtml(route.destination)} · ${this.escapeHtml((route.days || []).join(', '))} · arrive ${this.escapeHtml(route.arrival_time)}</div>
+        </div>
+        <button type="button" class="scheduled-route-use text-cyan-300 hover:text-white px-1" data-route-id="${this.escapeHtml(route.id)}" title="Use this route"><i class="fa-solid fa-route"></i></button>
+        <button type="button" class="scheduled-route-remove text-slate-500 hover:text-rose-300 px-1" data-route-id="${this.escapeHtml(route.id)}" title="Remove route plan"><i class="fa-solid fa-trash-can"></i></button>
+      </div>
+    `).join('');
+    list.querySelectorAll('.scheduled-route-remove').forEach((button) => {
+      button.addEventListener('click', () => {
+        this.scheduledRoutes = routes.filter((route) => route.id !== button.dataset.routeId);
+        this.renderScheduledRoutes();
+      });
+    });
+    list.querySelectorAll('.scheduled-route-use').forEach((button) => {
+      button.addEventListener('click', () => {
+        const route = this.scheduledRoutes.find((item) => item.id === button.dataset.routeId);
+        if (route && this.handlers.onSelectScheduledRoute) this.handlers.onSelectScheduledRoute(route);
+      });
+    });
+    list.querySelectorAll('.scheduled-route-enabled').forEach((checkbox) => {
+      checkbox.addEventListener('change', () => {
+        const route = this.scheduledRoutes.find((item) => item.id === checkbox.dataset.routeId);
+        if (route) route.enabled = checkbox.checked;
+      });
+    });
+  }
+
+  renderHomepageScheduledRoutes() {
+    const list = document.getElementById('scheduled-routes-home-list');
+    const count = document.getElementById('scheduled-routes-home-count');
+    const routes = this.scheduledRoutes || [];
+    if (count) count.textContent = routes.length;
+    if (!list) return;
+    list.innerHTML = routes.length ? routes.map((route) => `
+      <button type="button" class="homepage-scheduled-route w-full text-left rounded-lg border border-slate-700 bg-slate-800/80 hover:bg-slate-700/80 px-2 py-1.5" data-route-id="${this.escapeHtml(route.id)}">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[10px] font-semibold text-white truncate">${this.escapeHtml(route.label)}</span>
+          <span class="text-[9px] text-cyan-300 shrink-0">${this.escapeHtml(route.arrival_time)}</span>
+        </div>
+        <div class="text-[9px] text-slate-400 truncate">${this.escapeHtml(route.origin)} → ${this.escapeHtml(route.destination)}</div>
+        <div class="text-[9px] text-slate-500">${this.escapeHtml((route.days || []).join(', '))}</div>
+      </button>
+    `).join('') : '<div class="text-[10px] text-slate-500 py-2">No saved routes for this persona.</div>';
+    list.querySelectorAll('.homepage-scheduled-route').forEach((button) => {
+      button.addEventListener('click', () => {
+        const route = routes.find((item) => item.id === button.dataset.routeId);
+        if (route && this.handlers.onSelectScheduledRoute) this.handlers.onSelectScheduledRoute(route);
+      });
+    });
+  }
+
+  showNextDayNotifications(result = {}) {
+    const box = document.getElementById('next-day-notification');
+    const notifications = result.notifications || [];
+    const alertBadge = document.getElementById('scheduled-routes-home-alert');
+    const scheduledAlert = document.getElementById('scheduled-route-alert');
+    if (!notifications.length) {
+      box?.classList.add('hidden');
+      document.getElementById('homepage-notification-balloon')?.classList.add('hidden');
+      alertBadge?.classList.add('hidden');
+      alertBadge?.classList.remove('flex');
+      scheduledAlert?.classList.add('hidden');
+      return;
+    }
+    if (alertBadge) {
+      alertBadge.textContent = notifications.length > 9 ? '9+' : String(notifications.length);
+      alertBadge.classList.remove('hidden');
+      alertBadge.classList.add('flex');
+    }
+    if (scheduledAlert) {
+      const first = notifications[0];
+      const replacement = first.replacement_route;
+      const replacementLine = replacement?.lines_used?.join(' → ') || replacement?.line || 'alternative route';
+      scheduledAlert.innerHTML = `<div class="flex items-center gap-1 font-bold"><i class="fa-solid fa-calendar-xmark text-rose-300"></i> Tomorrow's scheduled plan is affected</div><div class="mt-1">${notifications.length} saved route${notifications.length === 1 ? '' : 's'} affected by the disruption. ${replacement ? `Use ${this.escapeHtml(replacementLine)} instead: depart ${this.escapeHtml(first.replacement_departure)}, arrive ${this.escapeHtml(first.replacement_arrival)}.` : 'Open Plans for the updated route.'}</div>`;
+      scheduledAlert.classList.remove('hidden');
+    }
+    const notificationHtml = `<div class="font-bold flex items-center gap-1"><i class="fa-solid fa-bell text-amber-300"></i> Next-day disruption alert</div>${notifications.map((item, index) => {
+      const replacement = item.replacement_route;
+      const replacementLine = replacement?.lines_used?.join(' → ') || replacement?.line || 'Alternative route';
+      return `<div class="mt-1.5 border-t border-amber-800/60 pt-1.5"><strong>${this.escapeHtml(item.label)}</strong>: ${this.escapeHtml(item.advice || item.headline || 'Disruption detected')}.
+        ${replacement ? `<div class="mt-1 text-cyan-200">Take ${this.escapeHtml(replacementLine)} instead. Departs ${this.escapeHtml(item.replacement_departure)} · arrives ${this.escapeHtml(item.replacement_arrival)} · ${replacement.total_duration_min} min.</div><button type="button" class="next-day-use-route mt-1.5 w-full rounded bg-rose-700/90 hover:bg-rose-600 px-2 py-1.5 text-[10px] text-white font-bold" data-notification-index="${index}"><i class="fa-solid fa-route mr-1"></i>Affected route, click here to see reroute</button>` : ''}
+      </div>`;
+    }).join('')}`;
+    if (box) {
+      box.innerHTML = notificationHtml;
+      box.classList.remove('hidden');
+    }
+    const homepageBalloon = document.getElementById('homepage-notification-balloon');
+    const homepageContent = document.getElementById('homepage-notification-content');
+    if (homepageBalloon && homepageContent) {
+      homepageContent.innerHTML = notificationHtml;
+      homepageBalloon.classList.remove('hidden');
+    }
+    document.querySelectorAll('.next-day-use-route').forEach((button) => {
+      button.addEventListener('click', () => {
+        const notification = notifications[Number(button.dataset.notificationIndex)];
+        if (notification && this.handlers.onSelectNotificationRoute) {
+          this.handlers.onSelectNotificationRoute(notification);
+        }
+      });
+    });
   }
 
   renderCustomRouteError(errorData = {}) {
