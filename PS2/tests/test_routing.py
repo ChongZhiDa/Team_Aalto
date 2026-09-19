@@ -328,6 +328,16 @@ class TestRoutingModule(unittest.TestCase):
         self.assertIn("stations", d2d)
         self.assertEqual(d2d["origin_resolved"]["station"], "Pioneer")
 
+    def test_door_to_door_route_includes_alternatives_when_available(self):
+        """Door-to-door search preserves alternative graph paths for the new endpoints."""
+        route = self.router.route_door_to_door("Jurong East", "Punggol")
+        self.assertIn("alternatives", route)
+        self.assertGreaterEqual(len(route["alternatives"]), 1)
+        self.assertNotEqual(
+            route["path_segments"],
+            route["alternatives"][0]["path_segments"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
