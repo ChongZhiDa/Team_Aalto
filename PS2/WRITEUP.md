@@ -139,6 +139,26 @@ Rachel's browser -> Flask endpoint -> CommuterEngine / MultimodalRouter
                         -> local data and optional APIs -> JSON decision -> map/UI
 ```
 
+## Technology Stack
+
+| Layer | Technology | How StationBuddy uses it |
+|---|---|---|
+| Backend | **Python 3.9+ and Flask** | Serves the application, exposes REST-style JSON endpoints and coordinates routing, scenarios, profiles and recommendations. |
+| Frontend | **HTML5, CSS and vanilla JavaScript ES modules** | Implements the mobile-first interface, journey search, persona customizer, route cards, scenario controls and API calls without a Node.js build step. |
+| Maps | **Leaflet, OneMap and OpenStreetMap** | Renders Singapore basemaps, station markers, MRT routes and walking legs. OneMap tiles are available as the default local map style, with OpenStreetMap as a resilient fallback and with map attribution shown in the interface. |
+| Routing | **Local weighted MRT graph, GeoJSON and modeled pedestrian legs** | Resolves stations and landmarks, finds station-to-station paths, applies interchange and rain penalties, and constructs door-to-door route alternatives. |
+| Decision intelligence | **Python rules and profile-driven scoring** | Filters minor delays, checks deadlines and route relevance, evaluates crowd and shelter preferences, and selects an actionable recommendation for Rachel. |
+| Optional AI | **Gemini 1.5 Flash REST API** | Condenses a supplied service notice into one grounded advice sentence when a Gemini key is configured; otherwise the deterministic local summarizer is used. |
+| External data | **LTA DataMall, OneMap and data.gov.sg weather APIs** | Optionally supplies train alerts, crowd information, geocoding, route geometry and weather conditions. Local fixtures and fallback responses keep the judged scenarios reproducible without credentials. |
+| State and testing | **JSON, browser `localStorage`, Python `unittest`, in-memory cache and rate limiter** | Stores prototype persona data and the active browser journey, verifies the routing and decision flows, and limits repeated external requests. |
+
+The stack was kept lightweight for a reproducible prototype: Flask and the three
+Python packages in `requirements.txt` are sufficient to run the server, while
+the browser loads the interface and Leaflet map directly. The core scenario,
+routing and recommendation flows do not require a paid API or an LLM key. Live
+integrations enhance those flows when credentials and network access are
+available, but are not presented as guaranteed sources during the walkthrough.
+
 ## Main Functions Used in the Walkthrough
 
 | Function | Role in Rachel's journey |
