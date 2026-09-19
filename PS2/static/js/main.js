@@ -280,11 +280,15 @@ async function switchScenario(scenarioId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         scenario_id: scenarioId,
-        arrival_time: currentArrivalTime
+        arrival_time: currentArrivalTime,
+        origin: currentOrigin,
+        destination: currentDest
       })
     });
     const res = await resp.json();
     if (res.data) {
+      currentOrigin = res.data.profile?.origin || currentOrigin;
+      currentDest = res.data.profile?.destination || currentDest;
       currentData = res.data;
       offlineCache.save(currentData);
       updateAppView(currentData);

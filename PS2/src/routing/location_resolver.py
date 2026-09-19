@@ -587,7 +587,7 @@ def lookup_exact_address_onemap(query: str) -> Optional[Dict[str, Any]]:
             else:
                 display_name = base_addr
 
-            nearest_stn_meta, dist_m = find_nearest_station(lat, lon)
+            nearest_stn_meta, dist_m = _find_nearest_routable_station(lat, lon)
             if not nearest_stn_meta:
                 return None
 
@@ -641,6 +641,35 @@ def _extract_postal_code(text: str) -> Optional[str]:
     if match:
         return match.group(1)
     return None
+
+
+def _find_nearest_routable_station(latitude: float, longitude: float) -> Tuple[Optional[Dict[str, Any]], float]:
+    """Find the nearest MRT station represented by the graph router."""
+    from .graph_router import MRT_LINES
+    from .geojson_loader import get_station_metadata
+    from .coordinates import get_station_by_name
+
+    station_names = {
+        station["name"]
+        for line in MRT_LINES.values()
+        for station in line
+    }
+    nearest: Optional[Dict[str, Any]] = None
+    nearest_distance = float("inf")
+
+    for station_name in station_names:
+        metadata = get_station_metadata(station_name) or get_station_by_name(station_name)
+        if not metadata or not metadata.get("coords"):
+            continue
+        station_lat, station_lon = metadata["coords"]
+        dy = (latitude - station_lat) * 111000.0
+        dx = (longitude - station_lon) * 110970.0
+        distance_m = (dx * dx + dy * dy) ** 0.5
+        if distance_m < nearest_distance:
+            nearest_distance = distance_m
+            nearest = {**metadata, "name": station_name, "type": "MRT"}
+
+    return nearest, round(nearest_distance, 1)
 
 
 def _normalize(text: str) -> str:

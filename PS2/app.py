@@ -180,9 +180,14 @@ def _enrich_evaluation_with_custom_route(evaluation, origin, dest, rain_active=F
     track_color = LINE_COLORS.get(primary_line, "#2563eb")
 
     prim_lines = " -> ".join(route_res.get("lines_used", []))
-    prim_title = f"Primary: {prim_lines}" if prim_lines else route_res["title"]
+    prim_title = route_res["title"]
+    if prim_lines:
+        prim_title = f"{prim_title} (via {prim_lines})"
 
-    evaluation["is_custom"] = True
+    # Keep the map's custom geometry, but let the UI render the searched route
+    # alongside its dynamic alternatives instead of collapsing to one card.
+    evaluation["is_custom"] = False
+    evaluation["is_searched_route"] = True
     evaluation["routes"]["primary_ewl"] = {
         "id": "primary_ewl",
         "title": prim_title,
@@ -244,10 +249,13 @@ def _enrich_evaluation_with_custom_route(evaluation, origin, dest, rain_active=F
         evaluation["routes"]["bypass_bus10e"] = bus_route
 
     lines_str = " -> ".join(route_res.get("lines_used", []))
+    scenario_delay = evaluation["decision"].get("delay_minutes", 0)
     evaluation["decision"]["headline"] = f"Route: {orig_res.get('display')} to {dest_res.get('display')}"
-    evaluation["decision"]["one_line_advice"] = f"Via {lines_str} ({route_res.get('status')}). Travel time: {route_res.get('total_duration_min')} mins."
-    evaluation["decision"]["is_delayed"] = False
-    evaluation["decision"]["urgency"] = "CALM"
+    scenario_note = f" Scenario add-on: +{scenario_delay} min." if scenario_delay else ""
+    evaluation["decision"]["one_line_advice"] = (
+        f"Via {lines_str} ({route_res.get('status')}). "
+        f"Travel time: {route_res.get('total_duration_min')} mins.{scenario_note}"
+    )
     if alternatives:
         evaluation["decision"]["active_recommendation"] = f"Alternative via {' -> '.join(alternatives[0].get('lines_used', []))}"
 
@@ -316,12 +324,25 @@ def select_scenario():
     data = request.get_json() or {}
     scenario_id = data.get("scenario_id", SCENARIO_NORMAL)
     arrival_time = data.get("arrival_time")
+    origin = data.get("origin")
+    destination = data.get("destination")
     success = engine.set_scenario(scenario_id)
     if success:
+        evaluation = engine.evaluate_commute(
+            custom_arrival=arrival_time,
+            custom_origin=origin,
+            custom_dest=destination,
+        )
+        evaluation = _enrich_evaluation_with_custom_route(
+            evaluation,
+            origin,
+            destination,
+            rain_active=bool(evaluation.get("weather", {}).get("rain_alert")),
+        )
         return jsonify({
             "status": "success",
             "scenario_id": scenario_id,
-            "data": engine.evaluate_commute(custom_arrival=arrival_time)
+            "data": evaluation,
         })
     return jsonify({"status": "error", "message": f"Scenario {scenario_id} not found"}), 400
 
