@@ -179,7 +179,18 @@ function updateAppView(data) {
   uiController.updateTopBar(data);
   uiController.updatePersonaDisplay(data);
   uiController.updateAlertBanner(data);
-  uiController.updateRouteCards(data, activeRouteId);
+  if (data.is_searched_route && routes.primary_ewl) {
+    currentSearchedRoutes = [
+      routes.primary_ewl,
+      ...(routes.bypass_dtl ? [routes.bypass_dtl] : []),
+      ...(routes.bypass_bus10e ? [routes.bypass_bus10e] : [])
+    ];
+    currentArbitraryRoute = routes.primary_ewl;
+    uiController.renderArbitraryRouteCard(routes.primary_ewl, currentSearchedRoutes);
+    activeRouteId = 'arbitrary_route';
+  } else {
+    uiController.updateRouteCards(data, activeRouteId);
+  }
   uiController.highlightActiveCard(activeRouteId);
   uiController.setAllRoutesButtonState(mapController.showAllRoutes);
 
